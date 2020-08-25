@@ -651,7 +651,7 @@ def trainValidateNet(train_dataloader, valid_dataloader, neural_net, learning_ra
         
         lossList_valid.append(loss_sum_valid/iteration_num_valid)
 
-        print("Epoch: ", epoch, "| train loss: %.8f | valid loss: %.8f  " 
+        print("Iter: ", iter_num, "| Epoch: ", epoch, "| train loss: %.8f | valid loss: %.8f  " 
               % (loss_sum_train/iteration_num_train, loss_sum_valid/iteration_num_valid))
         
         if (epoch+1) % 100 == 0:
