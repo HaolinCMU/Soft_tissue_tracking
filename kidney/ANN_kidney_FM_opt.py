@@ -713,7 +713,7 @@ if __name__ == "__main__":
 
 
     # Extract data from .mat file
-    FEM_data_path = os.path.join(FEN_data_folder_path, data_file_name)
+    FEM_data_path = os.path.join(FEM_data_folder_path, data_file_name)
     data_mat = scipy.io.loadmat(FEM_data_path)
     v_space, data_x = data_mat["NodeI"], data_mat["xI"] # Change the variable's name if necessary.
     
