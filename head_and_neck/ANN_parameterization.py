@@ -682,6 +682,7 @@ def trainValidateNet(combination, iter_num, train_dataloader, valid_dataloader, 
         loss_sum_train, loss_sum_valid = 0, 0
         
         # Training
+        iteration_num_train = 0
         for iteration, (displacements, weights) in enumerate(train_dataloader):
             # Forward fitting
             x_train_batch = torch.autograd.Variable(displacements)
@@ -697,9 +698,12 @@ def trainValidateNet(combination, iter_num, train_dataloader, valid_dataloader, 
             optimizer.step()
 
             loss_sum_train += loss_train_temp.cpu().data.numpy()
-        lossList_train.append(loss_sum_train)
+            iteration_num_train += 1
+
+        lossList_train.append(loss_sum_train/iteration_num_train)
         
         # Validation
+        iteration_num_valid = 0
         for iteration, (displacements, weights) in enumerate(valid_dataloader):
             x_valid_batch = torch.autograd.Variable(displacements)
             y_valid_batch = torch.autograd.Variable(weights)
@@ -707,11 +711,14 @@ def trainValidateNet(combination, iter_num, train_dataloader, valid_dataloader, 
             y_valid_batch = y_valid_batch.to(device)
             output = neural_net(x_valid_batch)
             loss_valid_temp = criterion(output, y_valid_batch)
+
             loss_sum_valid += loss_valid_temp.cpu().data.numpy()
+            iteration_num_valid += 1
         
-        lossList_valid.append(loss_sum_valid)
-        print("Archi: {} | Iter: ".format(combination), iter_num+1, "| Epoch: ", epoch, "| train loss: %.6f | valid loss: %.6f  " 
-              % (loss_sum_train, loss_sum_valid))
+        lossList_valid.append(loss_sum_valid/iteration_num_valid)
+
+        print("Archi: {} | Iter: ".format(combination), iter_num+1, "| Epoch: ", epoch, "| train loss: %.8f | valid loss: %.8f  " 
+              % (loss_sum_train/iteration_num_train, loss_sum_valid/iteration_num_valid))
     
     name_label_list_temp = [str(item) for item in neural_net.hidden_layer_struct]
     name_label_string = '_'.join(name_label_list_temp)
