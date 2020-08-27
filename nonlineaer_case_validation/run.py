@@ -41,7 +41,7 @@ def run(jobname, Cpus, Domains, Gpus):
 # ***************************************************************************************************** #
 
 current_directory = "C:/Users/13426/Desktop/soft_tissue_tracking/code/ANN/nonlinear" # Directory with only input files of stage1 and stage2. 
-inp_folder = "inp_test"
+inp_folder = "inp_files"
 working_directory = os.path.join(current_directory, inp_folder)
 os.chdir(working_directory)
 file_list = os.listdir(working_directory )
