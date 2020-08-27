@@ -891,6 +891,9 @@ def main():
     data_file_name = "benchmark20mm1000samples.mat" # The file name of data file. 
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
     
+    if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
+    if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
+    
     # Parameterization related parameters. 
     # Define ANN hidden layer combinations. 
     neuron_num_options_list = [32, 64, 128] # List of int. List all possible neuron numbers for a single hidden layer. 
