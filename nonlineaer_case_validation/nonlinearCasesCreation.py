@@ -28,6 +28,12 @@ class inputFileGenerator(object):
 
         Parameters: 
         ----------
+        data_file_name: String. 
+            The file path of information of node, element, etc. 
+        write_path: String. 
+            The path to write the inp file. 
+        fix_indices_list: List of ints. 
+            The node indices to be fixed. 
         
         """
         
@@ -137,7 +143,7 @@ class inputFileGenerator(object):
 
     def writeFile(self):
         """
-        Write 'self.write_lines' into new inp file. 
+        Write 'self.write_lines' into a new inp file. 
 
         """
         
@@ -152,7 +158,17 @@ class inputFileGenerator(object):
 
     def generatePart(self):
         """
+        Generate part definition.  
 
+        Returns:
+        ----------
+        The list collection of all sub-definition lists, including:
+            part_initial: header part of "Part definition". 
+            node: Node definition.
+            elem: Element definition.
+            elset_all: The elset containing all elements. For material definition specifically. 
+            section: Section definition. 
+            part_end: The endline of "Part definition". 
         """
 
         self.generateNodes()
@@ -173,6 +189,7 @@ class inputFileGenerator(object):
 
     def generateNodes(self):
         """
+        Generate node information. 
 
         """
 
@@ -186,6 +203,7 @@ class inputFileGenerator(object):
     
     def generateElements(self):
         """
+        Generate elements information. 
 
         """
 
@@ -199,6 +217,24 @@ class inputFileGenerator(object):
 
     def generateNset(self, node_list, nset_name, instance_name=None):
         """
+        Generate node set information. 
+
+        Parameters:
+        ----------
+        node_list: List of ints. 
+            The list of nodes to be contained in the node list. 
+        nset_name: String. 
+            The name of the to-be-defined node list. 
+        instance_name (optional): String. 
+            The name of specified instance. 
+            Only use in assembly definition. 
+            Default: None. (Part cases)
+
+        Returns:
+        ----------
+        nset: List of strings. 
+            The definition of a specific nset. 
+
         """
 
         if instance_name == None: nset = ["*Nset, nset={}".format(nset_name)]
@@ -222,6 +258,23 @@ class inputFileGenerator(object):
     
     def generateElset(self, elem_list, elset_name, instance_name=None):
         """
+        Generate element set information.
+
+        Parameters:
+        ----------
+        elem_list: List of ints. 
+            The list of elements to be contained in the element list. 
+        elset_name: String. 
+            The name of the to-be-defined element list. 
+        instance_name (optional): String. 
+            The name of specified instance. 
+            Only use in assembly definition. 
+            Default: None. (Part cases)
+
+        Returns:
+        ----------
+        elset: List of strings. 
+            The definition of a specific elset.         
         """
 
         if instance_name == None: elset = ["*Elset, elset={}".format(elset_name)]
@@ -245,6 +298,19 @@ class inputFileGenerator(object):
     
     def generateSection(self, elset_name, material_name):
         """
+        Generate section information. 
+
+        Parameters:
+        ----------
+        elset_name: String. 
+            The name of the elset to be assigned a section. 
+        material_name: String. 
+            The name of defined material. 
+
+        Returns:
+        ----------
+        section: List of strings. 
+            The definition of section. 
         """
 
         section = ["*Solid Section, elset={}, material={}".format(elset_name, material_name),
@@ -255,6 +321,15 @@ class inputFileGenerator(object):
     
     def generateAssembly(self):
         """
+        Generate assembly definition. 
+
+        Returns:
+        ----------
+        The list collection of all sub-definition lists, including:
+            assenbly_initial: Header of the assembly definition. 
+            instance: The instance definition. 
+            nset_boundary: The definition of BC related node set. 
+            asssenbly_end: The endline of assembly definition. 
 
         """
 
@@ -273,7 +348,13 @@ class inputFileGenerator(object):
 
     def generateBoundaryCondition_fixAll(self):
         """
+        Generate fix boundary condition. 
 
+        Returns:
+        ----------
+        The list collection of all sub-definition lists, including:
+            boundary_initial: Header of boundary condition definition. 
+            BC_list_temp: The detailed BC definition of boundary conditions. 
         """
 
         BC_list_temp = []
@@ -285,6 +366,12 @@ class inputFileGenerator(object):
 
     def generateLoadSetting(self):
         """
+        Generate load information. 
+
+        Returns:
+        ----------
+        load_list: List of strings. 
+            Definition of concentrated forces. 
 
         """
 
@@ -303,9 +390,6 @@ class inputFileGenerator(object):
 
 
 def main():
-    """
-    """
-
     inp_folder = "inp_files"
     sample_nums = 1000
     data_file_path = "data_head_and_neck.mat"
