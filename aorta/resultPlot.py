@@ -13,6 +13,8 @@ import scipy.io # For extracting data from .mat file
 
 figure_folder_path = 'figure' # The directory of figure folder. 
 
+if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
+
 data_file = scipy.io.loadmat('ANN_benchmark_results.mat')
 max_nodal_error_testPCA = data_file['max_nodal_error_testPCA']
 mean_nodal_error_testPCA = data_file['mean_nodal_error_testPCA']
