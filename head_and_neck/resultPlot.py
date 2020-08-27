@@ -5,6 +5,7 @@ Created on Mon Jul  6 16:00:55 2020
 @author: haolinl
 """
 
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
