@@ -717,6 +717,9 @@ if __name__ == "__main__":
     figure_folder_path = "figure" # The directory of figure folder. 
     data_file_name = "benchmark20mm1000samples.mat" # The file name of data file. 
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
+    
+    if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
+    if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
 
 
     # Extract data from .mat file
