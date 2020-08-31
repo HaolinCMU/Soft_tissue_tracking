@@ -4,8 +4,35 @@ close all; clear all; clc
 % read file core mesh
 file_path = 'AortaAneurism';
 [NodeI, faces, elems, nNodeI, nFaceI, nEleI] = extractMeshInfo(file_path);
+NodeI = (NodeI .* 0.07) ./ 550.0; % Rescale; 
 FaceI = faces(:,2:end);
 EleI = elems(:,2:end);
+
+%% Region visualization;
+region_list = [];
+for i = 1:size(faces,1)
+    if ismember(faces(i,1),region_list)
+        continue;
+    else
+        region_list = [region_list, faces(i,1)];
+    end
+end
+
+for i = 1:length(region_list)
+    plot_faces_temp = [];
+    for j = 1:size(faces,1)
+        if faces(j,1) == region_list(i)
+            plot_faces_temp = [plot_faces_temp;faces(j,2:end)];
+        else
+            continue;
+        end
+    end
+    
+    figure
+    trisurf(plot_faces_temp, NodeI(:,1), NodeI(:,2), NodeI(:,3), 'FaceColor', 'none', 'EdgeColor', [0.25 0.25 1]);
+    title(['Region - ', num2str(region_list(i))]);
+end
+
 
 %% create stiffness matrices
 
