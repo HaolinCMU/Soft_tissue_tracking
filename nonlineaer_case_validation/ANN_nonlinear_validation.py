@@ -70,8 +70,6 @@ class Net1(nn.Module):
         
         f1 = self.hidden_1(x)
         f2 = self.hidden_2(f1)
-        # f3 = self.hidden_3(f2)
-        # f4 = self.hidden_4(f3)
         output = self.out_layer(f2)
         return output
 
@@ -778,13 +776,13 @@ def main():
 
     Preparations:
     ----------
-        1. Run benchmarkCreation.m in Matlab to generate the file "benchmark20mm1000samples.mat" (main data file) in the working directory;
-        2. Create two empty folders in the working directory and name them as "ANN_model" and "figure", respectively.
+        1. Run nonlinearCasesCreation.py to generate model input files for Abaqus and the file "training_parameters_transfer.mat" in the working directory;
+        2. Run nonlinear FEA on Abaqus (Run script -> run.py), and run data_extraction.m to generate result coordinates (saved in .csv files) after deformation.
     
     Pipeline:
     ----------
         1. Initialize parameters;
-        2. Extract data from the aforementioned .mat files;
+        2. Extract data from the aforementioned .mat files and .csv files;
         3. Implement PCA on the extracted data, and generate/obtain the fiducial marker indices;
         4. Data preprocessing, and generate train/valid/test tensor dataloaders; 
         5. Train & Validate & Test ANN. MLP Architecture: [3*FM_num, 128, 64, PC_num];
@@ -990,5 +988,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run the main function in terminal: python ANN_64x32.py
+    # Run the main function in terminal: python ANN_nonlinear_validation.py. 
     main()
