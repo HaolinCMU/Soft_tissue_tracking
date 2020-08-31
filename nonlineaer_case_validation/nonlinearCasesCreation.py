@@ -341,7 +341,7 @@ class inputFileGenerator(object):
         for i in range(self.loads_num): 
             load_name_temp = "Load-{}".format(i+1)
             self._load_name_list.append(load_name_temp)
-            load_posi_index_temp = np.random.randint(1, self.surface_nodes_num+1) # Rnadomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
+            load_posi_index_temp = np.random.randint(1, self.surface_nodes_num+1) # Randomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
             self._load_nsets += self.generateNset([load_posi_index_temp], load_name_temp, 
                                                   self._instance_name)
         
@@ -395,7 +395,7 @@ class inputFileGenerator(object):
 
 def main():
     inp_folder = "inp_files"
-    sample_nums = 1000
+    sample_nums = 0
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
