@@ -22,7 +22,7 @@ class inputFileGenerator(object):
         Pressure: Pa
     """
 
-    def __init__(self, data_file_name, write_path, fix_indices_list):
+    def __init__(self, data_file_name, write_path, fix_indices_list, node_variable_name, elem_variable_name):
         """
         Initialize parameters. 
 
@@ -34,13 +34,18 @@ class inputFileGenerator(object):
             The path to write the inp file. 
         fix_indices_list: List of ints. 
             The node indices to be fixed. 
-        
+        node_variable_name: String. 
+            The variable name of the nodes matrix in the data file. 
+        elem_variable_name: String. 
+            The variable name of the elements matrix in the data file. 
         """
         
         # Data & Variables. 
         self.data_file_name = data_file_name
         self.data_mat = scipy.io.loadmat(self.data_file_name)
         self.surface_nodes_num = self.data_mat["nSurfI"][0,0]
+        self._node_variable_name = node_variable_name
+        self._elem_variable_name = elem_variable_name
         self._inputFile_lines_total = []
         self.writePath = write_path
 
@@ -91,7 +96,7 @@ class inputFileGenerator(object):
 
         # Step settings. 
         self.autoIncrementNum = 5000 # Int. The maximum increment number of the AutoSolver. 
-        self.initIncrem = 0.001 # FLoat. The initial length of the increment (for fixed-step, this is also the length per increm). 
+        self.initIncrem = 0.001 # Float. The initial length of the increment (for fixed-step, this is also the length per increm). 
         self.minIncrem = 1e-20 # Float. The minimum increment length for the AutoSolver (ueless for the StaticSolver). 
         self.maxIncrem = 1.0 # Float. The maximum increment length for the AutoSolver (useless for the StaticSovler). 
         self.totalTime = 1.0 # Float. The total time for one simulation step. 
@@ -105,9 +110,8 @@ class inputFileGenerator(object):
         self._step_end = ["*End Step"]
 
         # Load settings.
-        self._load_scale = 50 # Case and BC specific. Unit: N. 
+        self._load_scale = 50 # Case and BC specific. Unit: N. # Need to change. 
         self._load = self.generateLoadSetting()
-
 
         # Rest settings. 
         self._restart = ["*Restart, write, frequency=0"]
@@ -189,11 +193,11 @@ class inputFileGenerator(object):
 
     def generateNodes(self):
         """
-        Generate node information. 
+        Generate nodes information. 
 
         """
 
-        node_mat = self.data_mat["NodeI"]
+        node_mat = self.data_mat[self._node_variable_name]
 
         for i in range(node_mat.shape[0]):
             node_list_temp = ["{}".format(i+1)]
@@ -207,7 +211,7 @@ class inputFileGenerator(object):
 
         """
 
-        elem_mat = self.data_mat["EleI"]
+        elem_mat = self.data_mat[self._elem_variable_name]
 
         for i in range(elem_mat.shape[0]):
             elem_list_temp = ["{}".format(i+1)]
@@ -393,15 +397,38 @@ def main():
     inp_folder = "inp_files"
     sample_nums = 1000
     data_file_path = "data_head_and_neck.mat"
+    node_variable_name, elem_variable_name = "NodeI", "EleI"
+    results_folder_path_stress, results_folder_path_coor = "stress", "coor"
     fix_indices_list = [805, 815, 839] # Specify the node to fix. At least 3. Indexed from 1. 
 
     # Generate input file for Abaqus. 
     for i in range(sample_nums):
         if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
         
-        write_path = os.path.join(inp_folder, "{}.inp".format(str(i+1)))
-        inputFile_temp = inputFileGenerator(data_file_path, write_path, fix_indices_list)
+        write_path = os.path.join(inp_folder, "{}.inp".format(str(i+1001)))
+        inputFile_temp = inputFileGenerator(data_file_path, write_path, fix_indices_list, node_variable_name, elem_variable_name)
         inputFile_temp.writeFile()
+    
+    mdict = {"fix_indices_list": fix_indices_list,
+             "orig_data_file_name": data_file_path,
+             "orig_config_var_name": node_variable_name,
+             "inp_folder": inp_folder, 
+             "current_directory": os.getcwd(),
+             "results_folder_path_stress": results_folder_path_stress,
+             "results_folder_path_coor": results_folder_path_coor
+            }
+
+    scipy.io.savemat("training_parameters_transfer.mat", mdict)
+    
+
+    # np.savez("training_parameters_transfer.npz", 
+    #          fix_indices_list=fix_indices_list,
+    #          orig_data_file_name=data_file_path,
+    #          orig_config_var_name=node_variable_name,
+    #          inp_folder=inp_folder,
+    #          current_directory=os.getcwd(),
+    #          results_folder_path_stress=results_folder_path_stress,
+    #          results_folder_path_coor=results_folder_path_coor)
 
 
 if __name__ == "__main__":

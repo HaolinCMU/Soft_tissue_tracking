@@ -23,9 +23,11 @@ import visualization
 import xyPlot
 import displayGroupOdbToolset as dgo
 import connectorBehavior
+
 import os
 import time
 #import shutil
+
 
 #Define sequentially jobs running
 
