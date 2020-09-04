@@ -746,44 +746,41 @@ def main():
 
     # ********************************** INITIALIZE PARAMETERS ********************************** #
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    batch_size = 20 # Default: 20. 
-    learning_rate = 0.001 # Default: 0.001.
+    batch_size = 20
+    learning_rate = 0.001
     num_epochs = 4000 # Default: 1500. 
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
-    PC_num = 26 # Optimal. (Default: 26. From Dan). 
+    PC_num = 11 # Optimal. (Default: 11. From Dan 09/02). 
     isNormOn = False # True/Flase: Normalization on/off.
-    FEM_data_folder_path = "FEM_pipeline" # The directory of FEM data file (main data file). 
     ANN_folder_path = "ANN_model" # The directory of trained ANN models. 
     figure_folder_path = "figure" # The directory of figure folder. 
-    data_file_name = "benchmark.mat" # The file name of data file. 
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
-    
+
     if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
     if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
 
 
     # ********************************** DATA PROCESSING ********************************** #
     # Extract data from .mat file
-    FEM_data_path = os.path.join(FEM_data_folder_path, data_file_name)
-    data_mat = scipy.io.loadmat(FEM_data_path)
-    v_space, data_x = data_mat["NodeI"], data_mat["xI"] # Change the variable's name if necessary. 
+    data_mat = scipy.io.loadmat("benchmark.mat")
+    v_space, data_x = data_mat["NodeI"], data_mat["xI"] # change the variable's name if necessary. 
 
     # Implement PCA
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
     eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
     
-    # Generate FM indices (Founded best initial indices: 217, 496, 523, 564, 584, 1063)
+    # Generate FM indices (Founded best initial indices: 381)
     if isKCenter:
-        initial_pt_index = 920 # Initial point index for k-center clustering. Randomly assigned. Current best result: 584 (best mean_max_nodal_error: 0.92 mm)
+        initial_pt_index = 381 # Initial point index for k-center clustering. Randomly assigned. Current best result: 584 (best mean_max_nodal_error: 0.92 mm)
         k = 20 # The number of wanted centers (must be larger than the FM_num). Default: 20. 
         style = "mean" # Style of k-center clustering. "mean" or "last". 
         center_indices_list = greedyClustering(v_space, initial_pt_index, k, style)
         if center_indices_list != []: FM_indices = center_indices_list[0:FM_num]
         else: 
-            FM_indices = [426, 481, 920, 1093, 1154] # Optimal FM indices. Back-up choice when the returned list is empty.  
+            FM_indices = [331, 380, 381, 612, 1115] # Optimal FM indices. Back-up choice when the returned list is empty.  
             center_indices_list = FM_indices
     
     else:

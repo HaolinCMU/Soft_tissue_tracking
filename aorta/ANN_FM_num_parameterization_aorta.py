@@ -5,17 +5,17 @@ Created on Thu Jul  1 17:11:26 2020
 @author: haolinl
 """
 
-import os
 import copy
+import os
+import time
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.io # For extracting data from .mat file
 import scipy.stats as st
-import time
 import torch
-import torch.utils.data
 import torch.nn as nn
+import torch.utils.data
 
 
 class Net1(nn.Module):
@@ -23,7 +23,7 @@ class Net1(nn.Module):
     MLP modeling hyperparams:
     ----------
         Input: FM_num (FMs' displacements). 
-        Hidden layers: Default architecture: 128 x 64. Optimization available. 
+        Hidden layers: Default architecture: 128 x 64 (from Haolin). Optimization available. 
         Output: PC_num (weights generated from deformation's PCA). 
     """
     
@@ -50,16 +50,6 @@ class Net1(nn.Module):
             nn.ReLU(),
             # nn.Dropout(0.5)
         )
-        # self.hidden_3 = nn.Sequential(
-        #     nn.Linear(128, 64),
-        #     nn.ReLU(),
-        #     # nn.Dropout(0.5)
-        # )
-        # self.hidden_4 = nn.Sequential(
-        #     nn.Linear(64, 32),
-        #     nn.ReLU(),
-        #     # nn.Dropout(0.5)
-        # )
         self.out_layer = nn.Linear(64, self.PC_num)
         
         
@@ -80,23 +70,23 @@ class Net1(nn.Module):
         
         f1 = self.hidden_1(x)
         f2 = self.hidden_2(f1)
-        # f3 = self.hidden_3(f2)
-        # f4 = self.hidden_4(f3)
         output = self.out_layer(f2)
         return output
-        
+
 
 def saveLog(lossList_train, lossList_valid, FM_num, PC_num, batch_size, learning_rate, 
-            num_epochs, center_indices_list, elapsed_time, max_mean, mean_mean, write_path='train_valid_loss.log'):
+            num_epochs, center_indices_list, elapsed_time, max_mean, mean_mean, write_path):
     """
     Save the training & validation loss, training parameters and testing performance into .log file. 
 
     Parameters:
     ----------
         lossList_train: List. 
-            The train loss of each epoch. Exact order.
+            The train loss of each epoch. 
+            In exact order.
         lossList_valid: List. 
-            The valid loss of each epoch. Exact order.
+            The valid loss of each epoch. 
+            In exact order.
         FM_num: Int. 
             Number of fiducial markers. 
         PC_num: Int. 
@@ -118,32 +108,83 @@ def saveLog(lossList_train, lossList_valid, FM_num, PC_num, batch_size, learning
         max_mean: Float. 
             The mean value of mean nodal errors of all test samples. 
             Unit: mm. 
-        write_path (optional): String. 
+        write_path: String. 
             The path of to-be-saved .log file. 
-            Default: 'train_valid_loss.log'
     """
     
-    content = ['FM_num = {}'.format(FM_num),
-               'FM_indices (indexed from 0) = {}'.format(list(np.sort(center_indices_list[0:FM_num]))),
-               'Center_indices_list (indexed from 0) = {}'.format(list(center_indices_list)),
-               'PC_num = {}'.format(PC_num), 
-               'Batch_size = {}'.format(str(batch_size)), 
-               'Learning_rate = {}'.format(str(learning_rate)),
-               'Num_epochs = {}'.format(str(num_epochs)),
-               '----------------------------------------------------------',
-               'Epoch\tTraining loss\tValidation loss']
+    content = ["FM_num = {}".format(FM_num),
+               "FM_indices (indexed from 0) = {}".format(list(np.sort(center_indices_list[0:FM_num]))),
+               "Center_indices_list (indexed from 0, exact order) = {}".format(list(center_indices_list)),
+               "PC_num = {}".format(PC_num), 
+               "Batch_size = {}".format(str(batch_size)), 
+               "Learning_rate = {}".format(str(learning_rate)),
+               "Num_epochs = {}".format(str(num_epochs)),
+               "----------------------------------------------------------",
+               "Epoch\tTraining loss\tValidation loss"]
     
     for i in range(len(lossList_train)):
-        loss_string_temp = '%d\t%.8f\t%.8f' % (i, lossList_train[i], lossList_valid[i])
+        loss_string_temp = "%d\t%.8f\t%.8f" % (i, lossList_train[i], lossList_valid[i])
         content.append(loss_string_temp)
     
-    content += ['----------------------------------------------------------',
-                'Elapsed_time = {} s'.format(elapsed_time),
-                '\nTesting reconstruction performance parameters:',
-                'Max_mean = %.8f mm' % (max_mean),
-                'Mean_mean = %.8f mm' % (mean_mean)]
+    content += ["----------------------------------------------------------",
+                "Elapsed_time = {} s".format(elapsed_time),
+                "\nTesting reconstruction performance parameters:",
+                "Max_mean = %.8f mm" % (max_mean),
+                "Mean_mean = %.8f mm" % (mean_mean)]
     content = '\n'.join(content)
     
+    with open(write_path, 'w') as f: f.write(content)
+
+
+def saveParameterizationLog(results_list, write_path, FM_num_list, PC_num, batch_size, learning_rate, 
+                            num_epochs, center_indices_list, training_ratio, validation_ratio, 
+                            repeat_training_iters, hidden_layer_struct=[128, 64]):
+    """
+    Save the parameterization results in a .log file. 
+
+    Parameters:
+    ----------
+        results_list: List of string. 
+            Record the training&validation time and euclidean error of reconstruction.
+        write_path: String. 
+            The path to save the .log file. 
+        FM_num_list: List of Ints. 
+            Numbers of fiducial markers to be parameterized. 
+        PC_num: Int. 
+            Number of principal components. 
+        batch_size: Int. 
+            The size of one single training batch. 
+        learning_rate: Float. 
+            Learning rate. 
+        num_epochs: Int. 
+            The number of total training iterations. 
+        center_indices_list: List. 
+            Picked indices of all generated centers/FMs. 
+        training_ratio: Float. 
+            The portion of training dataset. 
+        validation_ratio: Float. 
+            The portion of validation dataset. 
+        repeat_training_iters: Int. 
+            THe number of times the training repeats for each fixed model. 
+        hidden_layer_struct (optional): List of ints. 
+            The hidden layer representation, using a list of ints. 
+            Default: [128, 64]. From Haaolin. 
+    """
+
+    header_list = ["FM_num_list = {}".format(FM_num_list),
+                   "HL_combination = {}".format(hidden_layer_struct), 
+                   "Center_indices_list (indexed from 0, exact order) = {}".format(list(center_indices_list)),
+                   "PC_num = {}".format(PC_num), 
+                   "Batch_size = {}".format(str(batch_size)), 
+                   "Learning_rate = {}".format(str(learning_rate)),
+                   "Num_epochs = {}".format(str(num_epochs)),
+                   "Training_ratio = {}".format(str(training_ratio)),
+                   "Validation_ratio = {}".format(str(validation_ratio)),
+                   "Repeat_training_iters = {}".format(str(repeat_training_iters)),
+                   "----------------------------------------------------------"]
+    header_list += results_list
+
+    content = '\n'.join(header_list)
     with open(write_path, 'w') as f: f.write(content)
 
 
@@ -156,14 +197,14 @@ def normalization(data):
     ----------
         data: 2D Array. 
             Matrix of training/testing input data. 
-    
+
     Returns:
     ----------
         data_nor: 2D Array. 
             Matrix of the normalized data with the same shape as the input. 
         norm_params: 1D Array (6 x 1). 
-            Containing 'min' and 'max'  of each direction for reconstruction. 
-            Row order: [x_min; x_max; y_min; y_max; z_min; z_max].
+            Containing "min" and "max"  of each direction for reconstruction. 
+            Row order: [x_min;x_max;y_min;y_max;z_min;z_max]. 
     """
     
     data_nor, norm_params = np.zeros(data.shape), None
@@ -192,14 +233,14 @@ def matrixShrink(data_matrix):
     Parameters:
     ----------
         data_matrix: 2D Array. 
+            The full matrix of deformation data. 
             Size: nDOF x SampleNum. 
-            The full matrix of deformation data.
 
     Returns:
     ----------
         data_shrinked: 2D Array. 
+            The matrix without zero rows. 
             Size: nDOF' x SampleNum. 
-            The matrix without zero rows.
         nDOF: Int. 
             Number of all DOFs of original deformation matrix. 
         non_zero_indices_list: List. 
@@ -209,6 +250,7 @@ def matrixShrink(data_matrix):
     
     nDOF = data_matrix.shape[0]
     zero_indices_list, non_zero_indices_list = [], []
+
     for i in range(data_matrix.shape[0]):
         if data_matrix[i,0] == 0: zero_indices_list.append(i)
         else: non_zero_indices_list.append(i)
@@ -226,17 +268,18 @@ def zeroMean(data_matrix):
     ----------
         data_matrix: 2D Array. 
             Size: nFeatures x nSamples. 
-    
+
     Returns:
     ----------
-        data_new: 2D Array with the same size as data_matrix. Zeroshifted data. 
+        data_new: 2D Array with the same size as data_matrix. 
+            Mean-shifted data. 
         mean_vect: 1D Array. 
             The mean value of each feature. 
     """
     
     mean_vect = np.mean(data_matrix, axis=1) # Compute mean along with sample's axis. 
-    
     data_new = np.zeros(data_matrix.shape)
+
     for i in range(data_matrix.shape[1]):
         data_new[:,i] = data_matrix[:,i] - mean_vect
     
@@ -245,39 +288,38 @@ def zeroMean(data_matrix):
 
 def PCA(data_matrix, PC_num):
     """
-    Implement PCA on tumor's deformation data (Encoder). 
+    Implement PCA on tumor's deformation covariance matrix (Encoder). 
 
     Parameters:
     ----------
         data_matrix: 2D Array. 
+            Each DOF is a feature. Mean-shifted. 
             Size: nNodes*3 x SampleNum. 
-            Each DOF is a feature. Zero shifted. 
         PC_num: Int. 
             The number of picked PCs.
-    
+
     Returns:
     ----------
         eigVect_full: 2D Array. 
+            All principal eigen-vectors. 
             Size: nNodes*3 x nNodes*3. 
-            All principal eigen-vectors.
         eigVal_full: 1D Array. 
-            Size: nNodes*3 x 1. 
             All principal eigen-values. 
+            Size: nNodes*3 x 1. 
         eigVect: 2D Array. 
+            Principal eigen-vectors. 
             Size: nNodes*3 x PC_num. 
-            Principal eigen-vectors.
         eigVal: 1D Array. 
-            Size: PC_num x 1. 
             Principal eigen-values. 
+            Size: PC_num x 1. 
         weights: 2D Array (complex). 
-            Size: PC_num x SampleNum. 
             Projected coordinates on each PC of all samples. 
+            Size: PC_num x SampleNum. 
     """
     
     # Compute covariance matrix & Eigendecompostion
     cov_matrix = data_matrix @ np.transpose(data_matrix) # Size: nDOF * nDOF
     eigVal_full, eigVect_full = np.linalg.eig(cov_matrix)
-#    eigVect_full = data_matrix @ eigVect_full # Compute the eigenvectors of all features
     
     # PCA
     eigVal, eigVect = np.zeros(shape=(PC_num, 1), dtype=complex), np.zeros(shape=(eigVect_full.shape[0], PC_num), dtype=complex)
@@ -289,7 +331,7 @@ def PCA(data_matrix, PC_num):
         eigVect[:,i] = eigVect_full[:,index] # Pick PC_num principal eigenvectors. Sorted. 
     
     # Compute weights of each sample on the picked basis (encoding). 
-    weights = np.transpose(eigVect) @ data_matrix # Size: PC_num * SampleNum
+    weights = np.transpose(eigVect) @ data_matrix # Size: PC_num * SampleNum, complex. 
     
     return eigVect_full, eigVal_full, eigVect, eigVal, weights
 
@@ -301,44 +343,38 @@ def dataReconstruction(eigVect, weights, mean_vect, nDOF, non_zero_indices_list)
     Parameters:
     ----------
         eigVect: 2D Array. 
-            Size: nDOF x PC_num. 
             Principal eigenvectors aligned along with axis-1. 
+            Size: nDOF x PC_num. 
         weights: 2D Array (complex). 
+            Weights of each sample aligned along with axis-1. 
             Size: PC_num x SampleNum. 
-            Weights of each sample aligned along with axis-1.
         mean_vect: 1D Array. 
             The mean value of each feature of training data. 
         nDOF: Int. 
             Number of all DOFs of original deformation matrix. 
         non_zero_indices_list: List. 
             All indices of non zero rows for deformation reconstruction. 
-    
+
     Returns:
     ----------
         data_reconstruct: 2D Array. 
-            Size: nDOF x SampleNum. 
             Reconstructed deformation results. 
+            Size: nDOF x SampleNum. 
     """
     
     # Transform weights back to original vector space (decoding)
-    data_temp = eigVect @ weights # Complex matrix. 
+    data_temp = eigVect @ weights
+
     for i in range(data_temp.shape[1]):
         data_temp[:,i] += mean_vect # Shifting back
     
     data_reconstruct = np.zeros(shape=(nDOF, data_temp.shape[1]), dtype=complex)
+
     for i, index in enumerate(non_zero_indices_list):
         data_reconstruct[index,:] = data_temp[i,:]
     
     return np.real(data_reconstruct)
     
-
-def performanceEvaluation():
-    """
-    Evaluate 3D Euclidean distance of each node pair of predicted and label deformation.
-    """
-    
-    pass
-
 
 def greedyClustering(v_space, initial_pt_index, k, style):
     """
@@ -365,6 +401,7 @@ def greedyClustering(v_space, initial_pt_index, k, style):
     ----------
         center_indices_list: List of int. 
             Containing the indices of all k centers. 
+            Empty if the input style indicator is wrong. 
     """
 
     if style == "last":
@@ -376,13 +413,14 @@ def greedyClustering(v_space, initial_pt_index, k, style):
             center_coord_temp = v_space[center_indices_list[j],:]
             max_dist_temp = 0.0
             new_center_index_temp = 0
+
             for i in range(v_space.shape[0]):
                 if i in center_indices_list: continue
             
                 coord_temp = v_space[i,:]
                 dist_temp = np.linalg.norm(center_coord_temp.reshape(-1,3) - coord_temp.reshape(-1,3))
-
                 dist_list = []
+                
                 for index in center_indices_list:
                     dist_temp_eachCenter = np.linalg.norm(coord_temp.reshape(-1,3) - v_space[index,:].reshape(-1,3))
                     dist_list.append(dist_temp_eachCenter)
@@ -406,11 +444,13 @@ def greedyClustering(v_space, initial_pt_index, k, style):
         while(True):
             max_dist_thrshld = 0.0
             new_center_index_temp = 0
+
             for i in range(v_space.shape[0]):
                 if i in center_indices_list: continue
             
                 coord_temp = v_space[i,:]
                 dist_list = []
+
                 for index in center_indices_list:
                     dist_temp = np.linalg.norm(coord_temp.reshape(-1,3) - v_space[index,:].reshape(-1,3))
                     dist_list.append(dist_temp)
@@ -430,22 +470,16 @@ def greedyClustering(v_space, initial_pt_index, k, style):
             var_thrshld = 1e5
             new_center_index_temp = 0
 
-            # ================= Picking only several points to calculate the distance variance (abandoned) ================= #
-            # picked_num_temp = int(np.ceil(len(center_indices_list)*0.3)) # Pick several center points to compute the distance variance. 
-            # picked_indices_temp = generateFMIndices(picked_num_temp, len(center_indices_list))
-            # picked_indices_temp = [center_indices_list[i] for i in copy.deepcopy(picked_indices_temp)]
-            # ============================================================================================================== #
-
             for i in range(v_space.shape[0]):
                 if i in center_indices_list: continue
 
                 coord_temp = v_space[i,:]
                 dist_list = []
-
-                # for index in picked_indices_temp: # Picking only several points to calculate the distance variance (abandoned). 
+ 
                 for index in center_indices_list:
                     dist_temp = np.linalg.norm(coord_temp.reshape(-1,3) - v_space[index,:].reshape(-1,3))
                     dist_list.append(dist_temp)
+
                 var_dist_temp = np.var(dist_list)
                 min_dist_temp = np.min(dist_list)
 
@@ -475,7 +509,7 @@ def generateFMIndices(FM_num, total_nodes_num):
             Number of FMs. 
         total_nodes_num: Int. 
             Total number of nodes. 
-    
+
     Returns:
     ----------
         FM_indices: List of int. 
@@ -483,6 +517,7 @@ def generateFMIndices(FM_num, total_nodes_num):
     """
 
     FM_indices = []
+
     for i in range(FM_num):
         rand_temp = np.random.randint(0, total_nodes_num)
         if rand_temp not in FM_indices: FM_indices.append(rand_temp)
@@ -500,8 +535,7 @@ def dataProcessing(data_x, data_y, batch_size, training_ratio, validation_ratio,
         data_x: 2D Array (nDOF x SampleNum). 
             The deformation data (x SampleNum) of all DOFs. 
         data_y: 2D Array (PC_num x SampleNum, complex). 
-            The label data (x SampleNum)
-            Here it should be the weights vectors for the force field reconstruction. 
+            The label data (x SampleNum), here it should be the weights vectors for the force field reconstruction. 
         batch_size: Int. 
             The size of a single training batch input.
         training_ratio: Float. 
@@ -539,7 +573,7 @@ def dataProcessing(data_x, data_y, batch_size, training_ratio, validation_ratio,
     data_x = copy.deepcopy(data_x_FM) # Size: FM_num*3 x SampleNum
     data_y = np.real(data_y) # Discard imaginary part of the weights for the convenience of training. 
     
-    # Partition the whole dataset into 'train' and 'test'. 
+    # Partition the whole dataset into "train" and "test". 
     training_index = int(np.ceil(data_x.shape[1] * training_ratio)) # Samples along with axis-1.
     validation_index = int(np.ceil(data_x.shape[1] * (training_ratio + validation_ratio))) # Samples along with axis-1.
     train_x = torch.from_numpy(data_x[:,0:training_index]).float() # size: 15 x nTrain
@@ -574,13 +608,17 @@ def dataProcessing(data_x, data_y, batch_size, training_ratio, validation_ratio,
     return train_dataloader, valid_dataloader, test_dataloader, norm_params
 
 
-def trainValidateNet(train_dataloader, valid_dataloader, neural_net, learning_rate, 
-                     num_epochs, neural_net_folderPath, iter_num, device):
+def trainValidateNet(FM_num, iter_num, train_dataloader, valid_dataloader, neural_net, learning_rate, 
+                     num_epochs, neural_net_folderPath, device):
     """
     Forward MLP training and validation. 
 
     Parameters:
     ----------
+        FM_num: Int. 
+            The number of fiducial markers. 
+        iter_num: Int. 
+            The number of (repeating) iteration the model is being trained. 
         train_dataloader: Tensor dataloader. 
             Training dataset.
         valid_dataloader: Tensor dataloader. 
@@ -592,10 +630,8 @@ def trainValidateNet(train_dataloader, valid_dataloader, neural_net, learning_ra
             Total number of training epochs. 
         neural_net_folderPath: String. 
             The directory to save the eventual trained ANN. 
-        iter_num: Int. 
-            The number of the current iteration. 
         device: CPU/GPU. 
-    
+
     Returns:
     ----------
         neural_net: Trained MLP. 
@@ -651,15 +687,11 @@ def trainValidateNet(train_dataloader, valid_dataloader, neural_net, learning_ra
         
         lossList_valid.append(loss_sum_valid/iteration_num_valid)
 
-        print("Iter: ", iter_num, "| Epoch: ", epoch, "| train loss: %.8f | valid loss: %.8f  " 
+        print("FM_num: {} | Iter: ".format(FM_num), iter_num+1, "| Epoch: ", epoch, "| train loss: %.8f | valid loss: %.8f  " 
               % (loss_sum_train/iteration_num_train, loss_sum_valid/iteration_num_valid))
-        
-        if (epoch+1) % 100 == 0:
-            ANN_savePath_temp = os.path.join(neural_net_folderPath, 
-                                             'ANN_' + str(int((epoch+1)/100)) + '.pkl')
-            torch.save(neural_net.state_dict(), ANN_savePath_temp) # Save the model every 100 epochs. 
     
-    torch.save(neural_net.state_dict(), os.path.join(neural_net_folderPath, 'ANN_trained.pkl')) # Save the final trained ANN model.
+    name_label_string = "{}".format(FM_num)
+    torch.save(neural_net.state_dict(), os.path.join(neural_net_folderPath, "ANN_trained_{}.pkl".format(name_label_string))) # Save the trained ANN model from the last training iter.
     
     return neural_net, lossList_train, lossList_valid
 
@@ -674,7 +706,7 @@ def testNet(test_dataloader, neural_net, device):
             Testing dataset.
         neural_net: Pre-trained MLP. 
         device: CPU/GPU. 
-    
+
     Returns:
     ----------
         pred_y_list: List of vectors. 
@@ -699,65 +731,88 @@ def testNet(test_dataloader, neural_net, device):
         lossList_test.append(loss_test_temp.cpu().data.numpy())
     
     return pred_y_List, test_y_List, lossList_test
-    
 
-if __name__ == "__main__":
-    # Initialize hyperparameters
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def main(): 
+    """
+    MAIN IMPLEMENTATION AND EXECUTION. 
+
+    Preparations:
+    ----------
+        1. Run benchmarkCreation.m in Matlab to generate the file "benchmark20mm1000samples.mat" (main data file) in the working directory;
+
+    Pipeline:
+    ----------
+        1. Initialize parameters;
+        2. Extract data from the aforementioned .mat files;
+        3. Define FM_num_list for parameterization; 
+        4. For each different FM_num, implement PCA on the extracted data, and generate/obtain the fiducial marker indices;
+        5. Data preprocessing, and generate train/valid/test tensor dataloaders; 
+        6. Iteratively Train & Validate & Test ANN with different fiducial marker numbers;
+        7. Deformation reconstruction for ANN; 
+        8. Save logs for each model and the overall parameterization.
+
+    Result files: 
+    ----------
+        1. "ANN_trained_*.pkl" x FM_num_num. 
+            The model/parameter files of trained ANN with different hidden layer architectures. 
+            Automatically saved in the folder "ANN_FM_num_parameterization"; 
+        2. "train_valid_loss_*.log". 
+            The text file contains hyperparameters of each ANN, loss & elapsed time of the training-validation process, and the performance of each model's testing; 
+        3. "FM_num_parameterization_results.log". 
+            Mean values of max nodal errors and elapsed time results of all tested models.  
+    """
+
+    # ********************************** INITIALIZE PARAMETERS ********************************** #
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 20
     learning_rate = 0.001
-    num_epochs = 4000 # Default: 1500. 
+    num_epochs = 4000 # Reasonable range: 3000 - 4000. 
     training_ratio = 0.8
     validation_ratio = 0.1
-    FM_num = 5
+    FM_num_list = [i for i in range(3, 21)] # List of ints. The range of FM_num to be parameterized. 
     PC_num = 11 # Optimal. (Default: 11. From Dan 09/02). 
     isNormOn = False # True/Flase: Normalization on/off.
-    ANN_folder_path = 'ANN_model' # The directory of trained ANN models. 
-    figure_folder_path = 'figure' # The directory of figure folder. 
+    ANN_folder_path = "ANN_FM_num_parameterization" # The directory of trained ANN models. 
+    figure_folder_path = "figure" # The directory of figure folder. 
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
 
     if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
     if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
 
+    # Specify the time for repeat training. 
+    repeat_training_iters = 3
 
+
+    # ********************************** DATA PROCESSING ********************************** #
     # Extract data from .mat file
-    data_mat = scipy.io.loadmat('benchmark.mat')
-    v_space, data_x = data_mat['NodeI'], data_mat['xI'] # change the variable's name if necessary. 
-    
+    data_mat = scipy.io.loadmat("benchmark.mat")
+    v_space, data_x = data_mat["NodeI"], data_mat["xI"] # change the variable's name if necessary. 
 
-    # DATA PROCESSING
     # Implement PCA
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
     eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
-    
 
-    # Loop for picking optimal FMs. 
-    iters, max_mean, mean_mean, opt_center_indices_list, tried_initial_pts_list = 0, 1e5, 1e5, None, []
 
-    while(True):
-        # Generate FM indices (Founded best initial indices: 217, 496, 523, 564, 584, 1063)
+    # ****************************** START PARAMETERIZATION ******************************* #
+    results_list = ["FM_num\t\tmean_max_nodal_error/mm\t\tmean_mean_nodal_error/mm\t\telapsed_time/s"]
+
+    for FM_num in FM_num_list: 
+        # Generate FM indices
         if isKCenter:
-            while(True):
-                initial_pt_index = np.random.randint(0, int(data_x.shape[0] / 3.0)) # Initial point index for k-center clustering. Randomly assigned. Best result: 523 (best mean_max_nodal: 1.00 mm)
-                if initial_pt_index not in tried_initial_pts_list:
-                    tried_initial_pts_list.append(initial_pt_index)
-                    break
+            initial_pt_index = 96 # Initial point index for k-center clustering. Randomly assigned. Current best result: 584 (best mean_max_nodal_error: 0.92 mm)
             k = 20 # The number of wanted centers (must be larger than the FM_num). Default: 20. 
             style = "mean" # Style of k-center clustering. "mean" or "last". 
             center_indices_list = greedyClustering(v_space, initial_pt_index, k, style)
             if center_indices_list != []: FM_indices = center_indices_list[0:FM_num]
             else: 
-                FM_indices = [584, 4, 268, 746, 303] # Optimal FM indices. Back-up choice when the returned list is empty.  
-                center_indices_list = FM_indices 
+                FM_indices = generateFMIndices(FM_num, int(data_x.shape[0] / 3.0)) # Randomly obtain FM indices. Back-up choice when the returned list is empty.  
+                center_indices_list = FM_indices
         
         else:
             FM_indices = generateFMIndices(FM_num, int(data_x.shape[0] / 3.0)) # Randomly obtain FM indices. 
-            # FM_indices = [876, 995, 1016, 867, 1034] # Manually choosing FMs. From k-means clustering. 
-            # FM_indices = [584, 4, 268, 746, 303] # Manually choosing FMs. From k-center plus variation regularization. 
-            # FM_indices = [42, 160, 493, 885, 1090] # Optimal FM indices. 
             center_indices_list = FM_indices
-        
 
         # Generate train/valid/test tensor dataloaders. 
         (train_dataloader, valid_dataloader, 
@@ -766,69 +821,71 @@ if __name__ == "__main__":
                                                         validation_ratio, FM_indices, 
                                                         bool_norm=isNormOn)
         
+        # Training, validation & testing
+        mean_max_err_list, mean_mean_err_list, elapsed_time_list = [], [], []
 
-        # Generate MLP model
-        neural_net = Net1(FM_num, PC_num).to(device)
-        
+        for i in range(repeat_training_iters): # Training iterations for the same group of parameters. 
+            # Generate MLP model
+            neural_net = Net1(FM_num, PC_num).to(device)
+            
+            # Forward training & validation
+            start_time = time.time()
+            neural_net, lossList_train, lossList_valid = trainValidateNet(FM_num, i, train_dataloader, valid_dataloader, 
+                                                                          neural_net, learning_rate, num_epochs, ANN_folder_path, device)
+            end_time = time.time()
+            elapsed_time = end_time - start_time # Elapsed time for training. 
 
-        # Forward training & validation
-        start_time = time.time()
-        (neural_net, lossList_train, lossList_valid) = trainValidateNet(train_dataloader, valid_dataloader, 
-                                                                        neural_net, learning_rate, num_epochs, ANN_folder_path, iters, device)
-        end_time = time.time()
-        elapsed_time = end_time - start_time # Elapsed time for training.      
-        
-        # Test MLP & Plot confidence interval of ANN accuracy
-        pred_y_List, test_y_List, lossList_test = testNet(test_dataloader, neural_net, device)
-        
+            # Test pre-trained MLP & Plot confidence interval of ANN accuracy
+            pred_y_List, test_y_List, lossList_test = testNet(test_dataloader, neural_net, device)
 
-        # Deformation reconstruction
-        data_matrix = data_mat['xI']
-        test_data = data_matrix[:,int(np.ceil(data_matrix.shape[1] * (training_ratio + validation_ratio))):] # Calling out testing deformation data
-        dist_nodal_matrix = np.zeros(shape=(int(test_data.shape[0]/3), len(pred_y_List)))
-        test_reconstruct_list, mean_error_list, max_error_list = [], [], []
-        for i in range(len(pred_y_List)):
-            data_reconstruct = dataReconstruction(eigVect, pred_y_List[i], mean_vect, 
-                                                nDOF, non_zero_indices_list) # Concatenated vector xyzxyz...
-            dist_vector_temp = (data_reconstruct.reshape(-1,3) - 
-                                test_data[:,i].reshape(-1,1).reshape(-1,3)) # Convert into node-wise matrix. 
-            node_pair_distance = []
-            for j in range(dist_vector_temp.shape[0]): # Number of nodes
-                node_pair_distance.append(np.linalg.norm(dist_vector_temp[j,:]))
-            mean_error_temp = np.sum(np.array(node_pair_distance).astype(float).reshape(-1,1)) / len(node_pair_distance)
-            max_error_temp = np.max(node_pair_distance)
-            dist_nodal_matrix[:,i] = np.array(node_pair_distance).astype(float).reshape(1,-1)
-            test_reconstruct_list.append(data_reconstruct)
-            mean_error_list.append(mean_error_temp)
-            max_error_list.append(max_error_temp)
+            # Deformation reconstruction
+            data_matrix = data_mat["xI"]
+            test_data = data_matrix[:,int(np.ceil(data_matrix.shape[1] * (training_ratio + validation_ratio))):] # Calling out testing deformation data
+            dist_nodal_matrix = np.zeros(shape=(int(test_data.shape[0]/3), len(pred_y_List)))
+            test_reconstruct_list, mean_error_list, max_error_list = [], [], []
 
-        max_nodal_error = 1e3*np.array(max_error_list).astype(float).reshape(-1,1) # Unit: mm. 
-        mean_nodal_error = 1e3*np.array(mean_error_list).astype(float).reshape(-1,1) # Unit: mm. 
-        
-        if np.mean(max_nodal_error) < max_mean: # Need a wise strategy to optimize FMs' distribution. 
-            """
-            Potential ideas: 
-                1. Compute PCA on geometry's shape, then generate FMs based on the PCA base vectors. 
-                2. Local vibration within Gaussian distribution. Need to know the the connectivity of each node. 
-                3. Weighted navigation. Navigate the point along with the direction within which the testing performance is improved. 
-                4. Derivative-free algorithm. Genetic algorithm / Simulated annealing. 
-                5. K-center clustering / K-means clustering (adopted, with regularization of distance variance and constraint of minimum distance threshold. )
-            """
-            max_mean = np.mean(max_nodal_error)
-            mean_mean = np.mean(mean_nodal_error)
-            opt_center_indices_list = copy.deepcopy(center_indices_list)
-            opt_FM_indices = np.sort(opt_center_indices_list[0:FM_num])
-            torch.save(neural_net.state_dict(), 'ANN_optimal.pkl') # Save the optimal neural net. 
-            # Save training process & test info into .log file.
-            saveLog(lossList_train, lossList_valid, FM_num, PC_num, batch_size, 
-                    learning_rate, num_epochs, center_indices_list, elapsed_time, max_mean, mean_mean)
-        
-        iters += 1
-        # Break when the mean value of max euclidean distance is less than 1.0 mm, or reached maximum iter num. 
-        # if max_mean < 1.0: break
-        if iters > 200:
-            print('Iterations reach the maximum number.')
-            break
+            for i in range(len(pred_y_List)):
+                data_reconstruct = dataReconstruction(eigVect, pred_y_List[i], mean_vect, 
+                                                    nDOF, non_zero_indices_list) # Concatenated vector xyzxyz...; A transfer from training dataset (upon which the eigen-space is established) to testing dataset. 
+                dist_vector_temp = (data_reconstruct.reshape(-1,3) - 
+                                    test_data[:,i].reshape(-1,1).reshape(-1,3)) # Convert into node-wise matrix. 
+                node_pair_distance = []
 
-    print(opt_center_indices_list)
-    print(opt_FM_indices)
+                for j in range(dist_vector_temp.shape[0]): # Number of nodes
+                    node_pair_distance.append(np.linalg.norm(dist_vector_temp[j,:]))
+                
+                mean_error_temp = np.sum(np.array(node_pair_distance).astype(float).reshape(-1,1)) / len(node_pair_distance)
+                max_error_temp = np.max(node_pair_distance)
+                dist_nodal_matrix[:,i] = np.array(node_pair_distance).astype(float).reshape(1,-1)
+                test_reconstruct_list.append(data_reconstruct)
+                mean_error_list.append(mean_error_temp)
+                max_error_list.append(max_error_temp)
+            
+            max_nodal_error = 1e3*np.array(max_error_list).astype(float).reshape(-1,1) # Unit: mm. 
+            mean_nodal_error = 1e3*np.array(mean_error_list).astype(float).reshape(-1,1) # Unit: mm.
+            max_mean = np.mean(max_nodal_error) # Compute the mean value of max errors. 
+            mean_mean = np.mean(mean_nodal_error) # Compute the mean value of mean errors.
+
+            mean_max_err_list.append(max_mean)
+            mean_mean_err_list.append(mean_mean)
+            elapsed_time_list.append(elapsed_time)
+
+        # Save training process & test info & parameterization results into .log files. 
+        name_label_string = "{}".format(FM_num)
+        writePath_ANN_models = os.path.join(ANN_folder_path, "train_valid_loss_{}.log".format(name_label_string))
+
+        saveLog(lossList_train, lossList_valid, FM_num, PC_num, batch_size, 
+                learning_rate, num_epochs, center_indices_list, elapsed_time, max_mean, mean_mean, write_path=writePath_ANN_models) # Save the training results from the last training iter.
+        
+        max_mean_mean, mean_mean_mean, elapsed_time_mean = np.mean(mean_max_err_list), np.mean(mean_mean_err_list), np.mean(elapsed_time_list)
+        print_string_temp = ("{}".format(FM_num) + "\t\t%.4f\t\t\t\t%.4f\t\t\t\t%.4f" % (max_mean_mean, mean_mean_mean, elapsed_time_mean))
+        results_list.append(copy.deepcopy(print_string_temp))
+        writePath_parameterization_results = os.path.join(ANN_folder_path, "FM_num_parameterization_results.log")
+
+        saveParameterizationLog(results_list, writePath_parameterization_results, FM_num_list, PC_num, batch_size, learning_rate, 
+                                num_epochs, center_indices_list, training_ratio, validation_ratio, repeat_training_iters)
+
+
+if __name__ == "__main__":
+    # Run the main function in terminal: python ANN_parameterization.py
+    main()
