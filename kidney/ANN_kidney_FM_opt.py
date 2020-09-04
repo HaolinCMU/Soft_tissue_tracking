@@ -656,10 +656,10 @@ def trainValidateNet(train_dataloader, valid_dataloader, neural_net, learning_ra
         
         if (epoch+1) % 100 == 0:
             ANN_savePath_temp = os.path.join(neural_net_folderPath, 
-                                             'ANN_' + str(int((epoch+1)/100)) + '.pkl')
+                                             "ANN_" + str(int((epoch+1)/100)) + ".pkl")
             torch.save(neural_net.state_dict(), ANN_savePath_temp) # Save the model every 100 epochs. 
     
-    torch.save(neural_net.state_dict(), os.path.join(neural_net_folderPath, 'ANN_trained.pkl')) # Save the final trained ANN model.
+    torch.save(neural_net.state_dict(), os.path.join(neural_net_folderPath, "ANN_trained.pkl")) # Save the final trained ANN model.
     
     return neural_net, lossList_train, lossList_valid
 
@@ -703,29 +703,26 @@ def testNet(test_dataloader, neural_net, device):
 
 if __name__ == "__main__":
     # Initialize hyperparameters
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    batch_size = 20 # Default: 20. 
-    learning_rate = 0.001 # Default: 0.001.
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    batch_size = 20
+    learning_rate = 0.001
     num_epochs = 4000 # Default: 1500. 
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
-    PC_num = 26 # Optimal. (Default: 26. From Dan). 
+    PC_num = 15 # Optimal. (Default: 15. From Dan 09/02). 
     isNormOn = False # True/Flase: Normalization on/off.
-    FEM_data_folder_path = "FEM_pipeline" # The directory of FEM data file (main data file). 
-    ANN_folder_path = "ANN_model" # The directory of trained ANN models. 
-    figure_folder_path = "figure" # The directory of figure folder. 
-    data_file_name = "benchmark.mat" # The file name of data file. 
+    ANN_folder_path = 'ANN_model' # The directory of trained ANN models. 
+    figure_folder_path = 'figure' # The directory of figure folder. 
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
-    
+
     if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
     if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
 
 
     # Extract data from .mat file
-    FEM_data_path = os.path.join(FEM_data_folder_path, data_file_name)
-    data_mat = scipy.io.loadmat(FEM_data_path)
-    v_space, data_x = data_mat["NodeI"], data_mat["xI"] # Change the variable's name if necessary.
+    data_mat = scipy.io.loadmat('benchmark.mat')
+    v_space, data_x = data_mat['NodeI'], data_mat['xI'] # change the variable's name if necessary. 
     
 
     # DATA PROCESSING
