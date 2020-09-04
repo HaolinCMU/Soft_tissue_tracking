@@ -4,7 +4,7 @@ close all; clear all; clc
 % read file core mesh
 file_path = 'AortaAneurism';
 [NodeI, faces, elems, nNodeI, nFaceI, nEleI] = extractMeshInfo(file_path);
-NodeI = (NodeI .* 0.07) ./ 550.0; % Rescale; 
+NodeI = (NodeI .* 0.07) ./ 550.0; % Rescale the maximum dimension to 0.07; 
 FaceI = faces(:,2:end);
 EleI = elems(:,2:end);
 

@@ -5,7 +5,7 @@ close all; clear all; clc
 load data.mat
 scale = 1e6;
 maxDisp = 0.02; % max displacement
-nMode = 500; % number of eigen force fields
+nMode = 20; % number of eigen force fields. Default: 20. 
 nForceField = 1000; % number of eigen force fields.
 
 [eigV, eigD] = eigs(laplacianMatrixI, nMode, 'sm'); % Shape's Laplacian -> shape's curvature info -> intrinsic. 
@@ -45,7 +45,7 @@ for i = 1 : size(ForceField,1)
         if size(temp, 2) == 0
             continue;
         else
-            if faces(j, 1) ~= 22 % The region number of outer surface (should be 22);
+            if faces(j, 1) ~= 22 % 22: The region number of outer surface. 
                 ForceField(i,:) = 0;
             else
                 continue;
