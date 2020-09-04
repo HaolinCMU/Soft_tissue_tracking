@@ -5,7 +5,7 @@ close all; clear all; clc
 load data.mat
 scale = 1e6;
 maxDisp = 0.02; % max displacement
-nMode = 500; % number of eigen force fields
+nMode = 20; % number of eigen force fields
 nForceField = 1000; % number of samples.
 
 [eigV, eigD] = eigs(laplacianMatrixI, nMode, 'sm'); % Shape's Laplacian -> shape's curvature info -> intrinsic. 
