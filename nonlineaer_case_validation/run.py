@@ -26,6 +26,7 @@ import connectorBehavior
 
 import os
 import time
+import numpy as np
 #import shutil
 
 
@@ -41,6 +42,11 @@ def run(jobname, Cpus, Domains, Gpus):
 
 
 # ***************************************************************************************************** #
+# transferred_data = np.load("training_parameters_transfer.npy")
+# current_directory = transferred_data.item().get("current_directory")
+# inp_folder = transferred_data.item().get("inp_folder")
+# stress_folder_name = transferred_data.item().get("results_folder_path_stress")
+# coord_folder_name = transferred_data.item().get("results_folder_path_coor")
 
 current_directory = "C:/Users/13426/Desktop/soft_tissue_tracking/code/ANN/nonlinear" # Directory with only input files of stage1 and stage2. 
 inp_folder = "inp_files"
@@ -73,12 +79,16 @@ for file_name in file_list:
         for file in check_list_temp:
             if (os.path.exists(os.path.join(working_directory, file)) and 
                 file.split('.')[-1] != "inp" and
-                file.split('.')[-1] != "log"): 
+                file.split('.')[-1] != "log" and
+                file.split('.')[-1] != "sta"): 
                 os.remove(os.path.join(working_directory, file))
 
-            if (file.split('.')[-1] == "inp"): 
+            if (file.split('.')[-1] == "inp" or
+                file.split('.')[-1] == "log" or
+                file.split('.')[-1] == "odb" or
+                file.split('.')[-1] == "sta"): 
                 ori_name = os.path.join(working_directory, file)
-                dst_name = ori_name.split('.')[0] + "_(aborted).inp"
+                dst_name = ori_name.split('.')[0] + "_(aborted)." + file.split('.')[-1]
                 os.rename(ori_name, dst_name)
         
         continue
@@ -92,12 +102,16 @@ for file_name in file_list:
         for file in check_list_temp:
             if (os.path.exists(os.path.join(working_directory, file)) and 
                 file.split('.')[-1] != "inp" and
-                file.split('.')[-1] != "log"): 
+                file.split('.')[-1] != "log" and
+                file.split('.')[-1] != "sta"): 
                 os.remove(os.path.join(working_directory, file))
 
-            if (file.split('.')[-1] == "inp"): 
+            if (file.split('.')[-1] == "inp" or
+                file.split('.')[-1] == "log" or
+                file.split('.')[-1] == "odb" or
+                file.split('.')[-1] == "sta"): 
                 ori_name = os.path.join(working_directory, file)
-                dst_name = ori_name.split('.')[0] + "_(aborted).inp"
+                dst_name = ori_name.split('.')[0] + "_(aborted)." + file.split('.')[-1]
                 os.rename(ori_name, dst_name)
         
         continue
@@ -109,6 +123,7 @@ for file_name in file_list:
             file.split('.')[-1] != "inp" and
             file.split('.')[-1] != "log" and
             file.split('.')[-1] != "fil" and
+            file.split('.')[-1] != "sta" and
             file.split('.')[-1] != "odb"): 
             os.remove(os.path.join(working_directory, file))
 

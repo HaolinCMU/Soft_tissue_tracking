@@ -57,12 +57,17 @@ class inputFileGenerator(object):
         self._material_name = "tissue"
         self._part_initial = ["*Part, name={}".format(self._part_name)] # Total list of Part definition. 
         self._node = ["*Node"]
-        self._elem = ["*Element, type=C3D4"]
+        self._elem = ["*Element, type=C3D10"] # Nonlinear tetrahedron. http://web.mit.edu/calculix_v2.7/CalculiX/ccx_2.7/doc/ccx/node33.html#tennode. 
         self._nset_all = []
         self._elset_all = []
         self._section = ["*Solid Section, elset=allElems, material={}".format(self._material_name),
                          ","]
         self._part_end = ["*End Part"]
+        self._new_node_list = []
+        self._new_node_dict = {}
+        self._node_num = None
+        self._orig_node_num = None
+        self._elem_num = None
         self._part = self.generatePart()
 
         # Assembly definition. 
@@ -177,6 +182,8 @@ class inputFileGenerator(object):
 
         self.generateNodes()
         self.generateElements()
+
+        self.nonlinearization()
 
         # Generate all element elset. 
         allElem_list, allElem_list_name = [], "allElems"
@@ -362,7 +369,7 @@ class inputFileGenerator(object):
         """
 
         BC_list_temp = []
-        for i in range(6): # 6: 6 DOFs. 
+        for i in range(6): # 6: 6 DOFs (disp. + rot.); 3: 3 DOFs (disp.). 
             BC_list_temp.append("{}, {}, {}".format(self._fix_nset_name, i+1, i+1))
         
         return (self._boundary_initial + BC_list_temp)
@@ -391,11 +398,97 @@ class inputFileGenerator(object):
             load_list += copy.deepcopy(load_temp)
         
         return load_list
+    
+    
+    def _computeMidPoint(self, ind_1, ind_2):
+        """
+        Compute the mid-point of the edge. 
+
+        Parameters:
+        ----------
+            ind_1: Int. 
+                The first index of the node pair. Indexed from 1. 
+            ind_2: Int. 
+                The second index of the node pair. Indexed from 1.
+        
+        Returns:
+        ----------
+            ind_mid: Int. 
+                The index of the self._node. Index from 1. 
+        """
+
+        key_string_temp_1, key_string_temp_2 = "{}_{}".format(ind_1, ind_2), "{}_{}".format(ind_2, ind_1)
+
+        if key_string_temp_1 in self._new_node_dict.keys(): return self._new_node_dict[key_string_temp_1]
+        elif key_string_temp_2 in self._new_node_dict.keys(): return self._new_node_dict[key_string_temp_2]
+        
+        else:
+            coord_temp_1 = np.array(self._node[ind_1].split(',')[1:]).astype(float).reshape(1,-1)
+            coord_temp_2 = np.array(self._node[ind_2].split(',')[1:]).astype(float).reshape(1,-1)
+
+            coord_temp_mid = (coord_temp_1 + coord_temp_2) / 2.0
+            coord_mid_list = [str(item) for item in list(coord_temp_mid[0])]
+
+            self._node_num = len(self._node)
+            new_node_def_list_temp = copy.deepcopy([str(self._node_num)])
+            new_node_def_list_temp += copy.deepcopy(coord_mid_list)
+            self._node.append(', '.join(new_node_def_list_temp))
+            self._new_node_list.append(', '.join(new_node_def_list_temp))
+
+            self._new_node_dict[key_string_temp_1] = self._node_num
+            self._new_node_dict[key_string_temp_2] = self._node_num
+
+            return self._node_num
+    
+
+    def insertNode(self):
+        """
+        Insert one node (at the mid-point) of each edge. 
+        Create C3D10 element structure. 
+        """
+
+        for index, elem_def_string in enumerate(self._elem[1:]):
+            elem_node_list_temp = [int(ind) for ind in elem_def_string.split(',')[1:]]
+            
+            # Obtain the mid-point index in order. 
+            mid_pt_ind_5 = self._computeMidPoint(elem_node_list_temp[0], elem_node_list_temp[1])
+            mid_pt_ind_6 = self._computeMidPoint(elem_node_list_temp[1], elem_node_list_temp[2])
+            mid_pt_ind_7 = self._computeMidPoint(elem_node_list_temp[0], elem_node_list_temp[2])
+            mid_pt_ind_8 = self._computeMidPoint(elem_node_list_temp[0], elem_node_list_temp[3])
+            mid_pt_ind_9 = self._computeMidPoint(elem_node_list_temp[1], elem_node_list_temp[3])
+            mid_pt_ind_10 = self._computeMidPoint(elem_node_list_temp[2], elem_node_list_temp[3])
+
+            elem_new_def_list_temp = [str(mid_pt_ind_5), 
+                                      str(mid_pt_ind_6),
+                                      str(mid_pt_ind_7),
+                                      str(mid_pt_ind_8),
+                                      str(mid_pt_ind_9),
+                                      str(mid_pt_ind_10)]
+            
+            # Redefine the new C3D10 element in order. 
+            elem_def_list_temp = copy.deepcopy(elem_def_string.split(',')) + copy.deepcopy(elem_new_def_list_temp)
+            elem_def_string_temp = ', '.join(elem_def_list_temp)
+
+            self._elem[index+1] = copy.deepcopy(elem_def_string_temp)
+
+    
+    def nonlinearization(self):
+        """
+        Nonlinearize the linear tetrahedral (CST) element to quadratic tetrahedral element.
+        """
+
+        self._elem_num = len(self._elem) - 1
+        self._orig_node_num = len(self._node) - 1
+
+        self.insertNode()
+
+        self._node_num = len(self._node) - 1
 
 
 def main():
+    abaqus_default_directory = "C:/temp" # Default working directory of Abaqus. 
     inp_folder = "inp_files"
-    sample_nums = 0
+    sample_nums = 3000
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
@@ -405,7 +498,7 @@ def main():
     for i in range(sample_nums):
         if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
         
-        write_path = os.path.join(inp_folder, "{}.inp".format(str(i+1001)))
+        write_path = os.path.join(inp_folder, "{}.inp".format(str(i+1)))
         inputFile_temp = inputFileGenerator(data_file_path, write_path, fix_indices_list, node_variable_name, elem_variable_name)
         inputFile_temp.writeFile()
     
@@ -415,13 +508,15 @@ def main():
              "inp_folder": inp_folder, 
              "current_directory": os.getcwd(),
              "results_folder_path_stress": results_folder_path_stress,
-             "results_folder_path_coor": results_folder_path_coor
+             "results_folder_path_coor": results_folder_path_coor,
+             "original_node_number": inputFile_temp._orig_node_num
             }
 
     scipy.io.savemat("training_parameters_transfer.mat", mdict)
     
+    # np.save(os.path.join(abaqus_default_directory, "training_parameters_transfer.npy"), mdict, fix_imports=True)
 
-    # np.savez("training_parameters_transfer.npz", 
+    # np.savez(os.path.join(abaqus_default_directory, "training_parameters_transfer.npz"), 
     #          fix_indices_list=fix_indices_list,
     #          orig_data_file_name=data_file_path,
     #          orig_config_var_name=node_variable_name,

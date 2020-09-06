@@ -725,7 +725,7 @@ def testNet(test_dataloader, neural_net, device):
     return pred_y_List, test_y_List, lossList_test
 
 
-def deformationExtraction(orig_data_file_name, variable_name, results_folder_path):
+def deformationExtraction(orig_data_file_name, variable_name, original_node_number, results_folder_path):
     """
     Extract deformation information from original configuration (.mat file) and deformed configuration (.csv file). 
 
@@ -743,7 +743,6 @@ def deformationExtraction(orig_data_file_name, variable_name, results_folder_pat
         data_x: 2D Array of float. 
             Size: node_num*3 x Sample_num (file_num). 
             The matrix of deformation of all nodes. 
-
     """
 
     data_mat_temp = scipy.io.loadmat(orig_data_file_name)
@@ -757,7 +756,7 @@ def deformationExtraction(orig_data_file_name, variable_name, results_folder_pat
         lines_temp = readFile(os.path.join(results_folder_path, file))
         nodes_list_temp = []
 
-        for line in lines_temp:
+        for line in lines_temp[:original_node_number]:
             coord_list_temp = [float(num) for num in line.split(',')[1:]]
             nodes_list_temp.append(copy.deepcopy(coord_list_temp))
         
@@ -835,9 +834,11 @@ def main():
     transfer_data_mat = scipy.io.loadmat("training_parameters_transfer.mat")
     data_mat = scipy.io.loadmat(transfer_data_mat["orig_data_file_name"][0])
 
+    original_node_number = transfer_data_mat["original_node_number"][0]
     fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
     v_space, data_x = data_mat[transfer_data_mat["orig_config_var_name"][0]], deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
                                                                transfer_data_mat["orig_config_var_name"][0], 
+                                                               original_node_number,
                                                                os.path.join(transfer_data_mat["current_directory"][0], 
                                                                             transfer_data_mat["inp_folder"][0], 
                                                                             transfer_data_mat["results_folder_path_coor"][0])) # change the variable's name if necessary. 
@@ -894,6 +895,7 @@ def main():
     # Deformation reconstruction
     data_matrix = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
                                         transfer_data_mat["orig_config_var_name"][0], 
+                                        original_node_number,
                                         os.path.join(transfer_data_mat["current_directory"][0], 
                                                      transfer_data_mat["inp_folder"][0], 
                                                      transfer_data_mat["results_folder_path_coor"][0]))
