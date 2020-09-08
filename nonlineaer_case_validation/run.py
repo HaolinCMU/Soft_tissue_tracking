@@ -27,18 +27,56 @@ import connectorBehavior
 import os
 import time
 import numpy as np
-#import shutil
+import shutil
 
 
 #Define sequentially jobs running
 
 def run(jobname, Cpus, Domains, Gpus):
+    """
+    Submit to Abaqus solver and run the job. 
+    """
+
     mdb.JobFromInputFile(name=jobname, inputFileName=jobname, type=ANALYSIS, atTime=None, 
         waitMinutes=0, waitHours=0, queue=None, memory=90, 
         memoryUnits=PERCENTAGE, explicitPrecision=SINGLE, nodalOutputPrecision=SINGLE, 
         userSubroutine='', scratch='', multiprocessingMode=DEFAULT, numCpus=Cpus, numDomains=Domains, numGPUs=Gpus)
     mdb.jobs[jobname].submit()
     mdb.jobs[jobname].waitForCompletion()
+
+
+def collectFiles(directory, jobname, extension, target_folder):
+    """
+    Move files of the specified task to corresponding folders. 
+
+    Parameters: 
+    ----------
+        directory: String. 
+            The working directory of Abaqus. 
+        jobname: String. 
+            The name of the job/task. 
+            If the job is not completed/aborted, then the extension "_aborted" will be addressed at the end of the jobname. 
+        extension: String. 
+            The format of the file. 
+            Starting with '.'. 
+        target_folder: String. 
+            The target subfolder of the to-be-moved file in the directory.
+    
+    Returns:
+    ----------
+        target_path: String. 
+            The path of the file after relocating. 
+            When the file does not exist, return "".
+    """
+
+    source_path = os.path.join(directory, jobname+extension)
+    target_path = os.path.join(directory, target_folder, jobname+extension)
+
+    if os.path.exists(source_path):
+        shutil.move(source_path, target_path)
+        return target_path
+    
+    else: return ""
 
 
 # ***************************************************************************************************** #
@@ -50,14 +88,28 @@ def run(jobname, Cpus, Domains, Gpus):
 
 current_directory = "C:/Users/13426/Desktop/soft_tissue_tracking/code/ANN/nonlinear" # Directory with only input files of stage1 and stage2. 
 inp_folder = "inp_files"
-stress_folder_name = "stress"
-coord_folder_name = "coor"
 working_directory = os.path.join(current_directory, inp_folder)
 os.chdir(working_directory)
 file_list = [file for file in os.listdir(working_directory) if os.path.isdir(file) == 0]
 
-Cpus = 4
-Domains = 4
+stress_folder_name = "stress"
+coord_folder_name = "coor"
+fil_folder_name = "fil"
+odb_folder_name = "odb"
+sta_folder_name = "sta"
+log_folder_name = "log"
+inp_folder_name = "inp"
+
+if not os.path.isdir(stress_folder_name): os.mkdir(os.path.join(working_directory, stress_folder_name))
+if not os.path.isdir(coord_folder_name): os.mkdir(os.path.join(working_directory, coord_folder_name))
+if not os.path.isdir(fil_folder_name): os.mkdir(os.path.join(working_directory, fil_folder_name))
+if not os.path.isdir(odb_folder_name): os.mkdir(os.path.join(working_directory, odb_folder_name))
+if not os.path.isdir(sta_folder_name): os.mkdir(os.path.join(working_directory, sta_folder_name))
+if not os.path.isdir(log_folder_name): os.mkdir(os.path.join(working_directory, log_folder_name))
+if not os.path.isdir(inp_folder_name): os.mkdir(os.path.join(working_directory, inp_folder_name))
+
+Cpus = 8
+Domains = 8
 Gpus = 0
 time_break = 5 # The break time to let Abaqus finish processing all files. Unit: s. 
 
@@ -66,8 +118,10 @@ stage1_list, stage2_list = [], []
 for file_name in file_list:
     if file_name.split('.')[-1] != "inp": continue
 
+    start_time = time.time()
     jobname = file_name.split('.')[0]
     run(jobname, Cpus, Domains, Gpus)
+    end_time_job = time.time()
     time.sleep(time_break)
 
     sta_path = "{}/{}.sta".format(working_directory, jobname) # Path to the corresponding .sta file
@@ -80,6 +134,7 @@ for file_name in file_list:
             if (os.path.exists(os.path.join(working_directory, file)) and 
                 file.split('.')[-1] != "inp" and
                 file.split('.')[-1] != "log" and
+                file.split('.')[-1] != "odb" and
                 file.split('.')[-1] != "sta"): 
                 os.remove(os.path.join(working_directory, file))
 
@@ -88,44 +143,71 @@ for file_name in file_list:
                 file.split('.')[-1] == "odb" or
                 file.split('.')[-1] == "sta"): 
                 ori_name = os.path.join(working_directory, file)
-                dst_name = ori_name.split('.')[0] + "_(aborted)." + file.split('.')[-1]
+                dst_name = ori_name.split('.')[0] + "_aborted." + file.split('.')[-1]
                 os.rename(ori_name, dst_name)
         
-        continue
+        jobname = file_name.split('.')[0] + "_aborted"
 
-    with open(sta_path, "rt") as f: lines = f.read().splitlines()
+    else: 
+        with open(sta_path, "rt") as f: lines = f.read().splitlines()
 
-    if not lines[-1] == " THE ANALYSIS HAS COMPLETED SUCCESSFULLY":
-        time.sleep(time_break)
-        check_list_temp = [file for file in os.listdir(working_directory) if file.split('.')[0] == jobname]
+        if not lines[-1] == " THE ANALYSIS HAS COMPLETED SUCCESSFULLY":
+            time.sleep(time_break)
+            check_list_temp = [file for file in os.listdir(working_directory) if file.split('.')[0] == jobname]
 
-        for file in check_list_temp:
-            if (os.path.exists(os.path.join(working_directory, file)) and 
-                file.split('.')[-1] != "inp" and
-                file.split('.')[-1] != "log" and
-                file.split('.')[-1] != "sta"): 
-                os.remove(os.path.join(working_directory, file))
+            for file in check_list_temp:
+                if (os.path.exists(os.path.join(working_directory, file)) and 
+                    file.split('.')[-1] != "inp" and
+                    file.split('.')[-1] != "log" and
+                    file.split('.')[-1] != "odb" and
+                    file.split('.')[-1] != "sta"): 
+                    os.remove(os.path.join(working_directory, file))
 
-            if (file.split('.')[-1] == "inp" or
-                file.split('.')[-1] == "log" or
-                file.split('.')[-1] == "odb" or
-                file.split('.')[-1] == "sta"): 
-                ori_name = os.path.join(working_directory, file)
-                dst_name = ori_name.split('.')[0] + "_(aborted)." + file.split('.')[-1]
-                os.rename(ori_name, dst_name)
+                if (file.split('.')[-1] == "inp" or
+                    file.split('.')[-1] == "log" or
+                    file.split('.')[-1] == "odb" or
+                    file.split('.')[-1] == "sta"): 
+                    ori_name = os.path.join(working_directory, file)
+                    dst_name = ori_name.split('.')[0] + "_aborted." + file.split('.')[-1]
+                    os.rename(ori_name, dst_name)
+            
+            jobname = file_name.split('.')[0] + "_aborted"
         
-        continue
+        else: 
+            check_list_temp = [file for file in os.listdir(working_directory) if file.split('.')[0] == jobname]
 
-    check_list_temp = [file for file in os.listdir(working_directory) if file.split('.')[0] == jobname]
+            for file in check_list_temp:
+                if (os.path.exists(os.path.join(working_directory, file)) and 
+                    file.split('.')[-1] != "inp" and
+                    file.split('.')[-1] != "log" and
+                    file.split('.')[-1] != "fil" and
+                    file.split('.')[-1] != "sta" and
+                    file.split('.')[-1] != "odb"): 
+                    os.remove(os.path.join(working_directory, file))
+    
+    target_path_fil_temp = collectFiles(working_directory, jobname, ".fil", fil_folder_name)
+    _ = collectFiles(working_directory, jobname, ".sta", sta_folder_name)
+    _ = collectFiles(working_directory, jobname, ".inp", inp_folder_name)
+    _ = collectFiles(working_directory, jobname, ".log", log_folder_name)
+    target_path_odb_temp = collectFiles(working_directory, jobname, ".odb", odb_folder_name)
 
-    for file in check_list_temp:
-        if (os.path.exists(os.path.join(working_directory, file)) and 
-            file.split('.')[-1] != "inp" and
-            file.split('.')[-1] != "log" and
-            file.split('.')[-1] != "fil" and
-            file.split('.')[-1] != "sta" and
-            file.split('.')[-1] != "odb"): 
-            os.remove(os.path.join(working_directory, file))
+    end_time_total = time.time()
+    elapsed_time_run = end_time_job - start_time
+    elapsed_time_total = end_time_total - start_time
 
-if not os.path.isdir(stress_folder_name): os.mkdir(os.path.join(working_directory, stress_folder_name))
-if not os.path.isdir(coord_folder_name): os.mkdir(os.path.join(working_directory, coord_folder_name))
+    if target_path_fil_temp == "": isFil_exist = "False"
+    else: 
+        if os.path.exists(target_path_fil_temp): isFil_exist = "True"
+        else: isFil_exist = "False"
+
+    if jobname.split('_')[-1] == "aborted": status_string = "Aborted"
+    else: status_string = "Completed"
+
+    print_string_temp = ("Job: " + jobname.split('_')[0] + " | File: " + jobname.split('_')[0]+".inp" + 
+                    " | Status: " + status_string + " | Fil: " + isFil_exist + " | Run time: %.4f s" % (elapsed_time_run) + 
+                    " | Total time: %.4f s" % (elapsed_time_total))
+
+    print(print_string_temp)
+
+    if target_path_odb_temp != "" and np.random.rand() <= 0.3: os.remove(target_path_odb_temp)
+    else: continue

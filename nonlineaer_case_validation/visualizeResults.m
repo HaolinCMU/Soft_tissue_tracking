@@ -22,8 +22,27 @@ for i = 1 : nFigRow * nFigCol
     trisurf(FaceI, NodeI(:, 1) + deform_label(:, 1), NodeI(:, 2) + deform_label(:, 2), NodeI(:, 3) + deform_label(:, 3),'FaceColor', 'none', 'EdgeColor', [0.25 0.25 1]); % Label configuration. 
     hold on
     plot3(NodeI(FM_indices,1) + deform_label(FM_indices, 1), NodeI(FM_indices, 2) + deform_label(FM_indices, 2), NodeI(FM_indices, 3) + deform_label(FM_indices, 3), 'r*'); % FMs in label configuration. 
-%     plot3(NodeI([42, 160, 493, 885, 1090],1) + deform_label([42, 160, 493, 885, 1090], 1), NodeI([42, 160, 493, 885, 1090], 2) + deform_label([42, 160, 493, 885, 1090], 2), NodeI([42, 160, 493, 885, 1090], 3) + deform_label([42, 160, 493, 885, 1090], 3), 'r*'); % FMs in label configuration. 
-%     plot3(NodeI(center_indices,1) + deform_label(center_indices, 1), NodeI(center_indices, 2) + deform_label(center_indices, 2), NodeI(center_indices, 3) + deform_label(center_indices, 3), 'r*'); % Center points in label configuration.
+
+    colormap jet
+    axis equal off
+    
+end
+
+
+%% Centers visualization in label configurations.
+figure
+for i = 1 : nFigRow * nFigCol
+    
+    deform_label = reshape(test_deformation_label(:, i), 3, [])'; % nNode * 3 matrix. 
+    
+    left = (i - 1) / nFigCol - floor((i - 1) / nFigCol);
+    bottom = 1 - (floor((i - 1) / nFigCol) + 1) / nFigRow;
+    positionVector = [left, bottom, 1 / nFigCol, 1 / nFigRow];
+    subplot('Position', positionVector);
+    
+    trisurf(FaceI, NodeI(:, 1) + deform_label(:, 1), NodeI(:, 2) + deform_label(:, 2), NodeI(:, 3) + deform_label(:, 3),'FaceColor', 'none', 'EdgeColor', [0.25 0.25 1]); % Label configuration. 
+    hold on
+    plot3(NodeI(center_indices,1) + deform_label(center_indices, 1), NodeI(center_indices, 2) + deform_label(center_indices, 2), NodeI(center_indices, 3) + deform_label(center_indices, 3), 'r*'); % Center points in label configuration.
 
     colormap jet
     axis equal off

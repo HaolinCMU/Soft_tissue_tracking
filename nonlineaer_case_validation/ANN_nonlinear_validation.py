@@ -490,7 +490,7 @@ def greedyClustering(v_space, initial_pt_index, k, style):
         return []
 
 
-def generateFMIndices(FM_num, total_nodes_num):
+def generateFMIndices(FM_num, fix_node_list, total_nodes_num):
     """
     Generate FM indices for benchmark deformation tracking. 
 
@@ -498,6 +498,8 @@ def generateFMIndices(FM_num, total_nodes_num):
     ----------
         FM_num: Int. 
             Number of FMs. 
+        fix_node_list: List of ints. 
+            Indices of fixed nodes. 
         total_nodes_num: Int. 
             Total number of nodes. 
     
@@ -511,7 +513,8 @@ def generateFMIndices(FM_num, total_nodes_num):
 
     for i in range(FM_num):
         rand_temp = np.random.randint(0, total_nodes_num)
-        if rand_temp not in FM_indices: FM_indices.append(rand_temp)
+        if (rand_temp not in FM_indices and 
+            rand_temp+1 not in fix_node_list): FM_indices.append(rand_temp)
     
     return FM_indices
 
@@ -725,7 +728,7 @@ def testNet(test_dataloader, neural_net, device):
     return pred_y_List, test_y_List, lossList_test
 
 
-def deformationExtraction(orig_data_file_name, variable_name, original_node_number, results_folder_path):
+def deformationExtraction(orig_data_file_name, variable_name, original_node_number, loads_num, results_folder_path):
     """
     Extract deformation information from original configuration (.mat file) and deformed configuration (.csv file). 
 
@@ -735,6 +738,10 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
             The path of the .mat file containing the node list of original configuration. 
         variable_name: String. 
             The variable name of the node list. 
+        original_node_number: Int. 
+            The number of original nodes. Excluding edge's midpoints. 
+        loads_num: Int. 
+            The number of loads = number of rf points = the header legnth of the coordinate .csv file, 
         results_folder_path: String. 
             The path of the directory containing the result .csv files. 
     
@@ -756,12 +763,12 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
         lines_temp = readFile(os.path.join(results_folder_path, file))
         nodes_list_temp = []
 
-        for line in lines_temp[:original_node_number]:
+        for line in lines_temp[loads_num:original_node_number+loads_num]:
             coord_list_temp = [float(num) for num in line.split(',')[1:]]
             nodes_list_temp.append(copy.deepcopy(coord_list_temp))
         
         deformed_config_temp = np.array(nodes_list_temp).astype(float).reshape(-1,1) # Size: node_num*3 x 1. Concatenated as xyzxyz...
-        x_temp = deformed_config_temp - orig_config_temp # 1D Array. Size: node_num*3 x 1. Calculate the deformation. Unit: mm. 
+        x_temp = deformed_config_temp - orig_config_temp # 1D Array. Size: node_num*3 x 1. Calculate the deformation. Unit: m. 
 
         if index == 0: data_x = copy.deepcopy(x_temp)
         else: data_x = np.hstack((data_x, copy.deepcopy(x_temp)))
@@ -819,7 +826,7 @@ def main():
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
-    PC_num = 26 # Optimal. (Default: 26. From Dan). 
+    PC_num = 27 # Optimal. (Default: 27. From Dan 09/02). 
     isNormOn = False # True/Flase: Normalization on/off.
     ANN_folder_path = "ANN_model" # The directory of trained ANN models. 
     figure_folder_path = "figure" # The directory of figure folder. 
@@ -834,21 +841,25 @@ def main():
     transfer_data_mat = scipy.io.loadmat("training_parameters_transfer.mat")
     data_mat = scipy.io.loadmat(transfer_data_mat["orig_data_file_name"][0])
 
-    original_node_number = transfer_data_mat["original_node_number"][0]
+    original_node_number = transfer_data_mat["original_node_number"][0][0]
+    loads_num = transfer_data_mat["loads_num"][0][0]
     fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
-    v_space, data_x = data_mat[transfer_data_mat["orig_config_var_name"][0]], deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
-                                                               transfer_data_mat["orig_config_var_name"][0], 
-                                                               original_node_number,
-                                                               os.path.join(transfer_data_mat["current_directory"][0], 
-                                                                            transfer_data_mat["inp_folder"][0], 
-                                                                            transfer_data_mat["results_folder_path_coor"][0])) # change the variable's name if necessary. 
+    v_space = data_mat[transfer_data_mat["orig_config_var_name"][0]]
+    data_x = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
+                                   transfer_data_mat["orig_config_var_name"][0], 
+                                   original_node_number, loads_num, 
+                                   os.path.join(transfer_data_mat["current_directory"][0], 
+                                                transfer_data_mat["inp_folder"][0], 
+                                                transfer_data_mat["results_folder_path_coor"][0])) # change the variable's name if necessary. 
 
     # Implement PCA
+    orig_node_num = int(data_x.shape[0] / 3.0)
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x, fix_indices_list) # Remove zero rows of data_x.
-    data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
+    data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean. 
     eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
     
     # Generate FM indices (Founded best initial indices: 96, 217, 496, 523, 564, 584, 1063)
+    v_space, _, _ = matrixShrink(v_space, fix_indices_list)
     if isKCenter:
         initial_pt_index = 96 # Initial point index for k-center clustering. Randomly assigned. Current best result: 584 (best mean_max_nodal_error: 0.92 mm)
         k = 20 # The number of wanted centers (must be larger than the FM_num). Default: 20. 
@@ -860,7 +871,7 @@ def main():
             center_indices_list = FM_indices
     
     else:
-        FM_indices = generateFMIndices(FM_num, int(data_x.shape[0] / 3.0)) # Randomly obtain FM indices. 
+        FM_indices = generateFMIndices(FM_num, fix_indices_list, original_node_number) # Randomly obtain FM indices. 
         center_indices_list = FM_indices
 
     # Generate train/valid/test tensor dataloaders. 
@@ -895,7 +906,7 @@ def main():
     # Deformation reconstruction
     data_matrix = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
                                         transfer_data_mat["orig_config_var_name"][0], 
-                                        original_node_number,
+                                        original_node_number, loads_num, 
                                         os.path.join(transfer_data_mat["current_directory"][0], 
                                                      transfer_data_mat["inp_folder"][0], 
                                                      transfer_data_mat["results_folder_path_coor"][0]))
