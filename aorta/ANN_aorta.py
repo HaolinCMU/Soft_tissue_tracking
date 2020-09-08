@@ -187,7 +187,7 @@ def normalization(data):
     return data_nor, norm_params
 
 
-def matrixShrink(data_matrix):
+def matrixShrink(data_matrix, fix_indices_list=[]):
     """
     Remove rows of zero displacement (fixed DOFs).
 
@@ -196,6 +196,11 @@ def matrixShrink(data_matrix):
         data_matrix: 2D Array. 
             Size: nDOF x SampleNum. 
             The full matrix of deformation data.
+        dix_indices_list (optional): List of ints.
+            The list of fixed indices. 
+            Indexed from 1. 
+            For nonlinear dataset, this list should be specified. 
+            Default: []. 
 
     Returns:
     ----------
@@ -209,14 +214,32 @@ def matrixShrink(data_matrix):
             In exact order.  
     """
     
-    nDOF = data_matrix.shape[0]
-    zero_indices_list, non_zero_indices_list = [], []
+    if fix_indices_list == []:
+        nDOF = data_matrix.shape[0]
+        zero_indices_list, non_zero_indices_list = [], []
 
-    for i in range(data_matrix.shape[0]):
-        if data_matrix[i,0] == 0: zero_indices_list.append(i)
-        else: non_zero_indices_list.append(i)
-    
-    data_shrinked = np.delete(data_matrix, zero_indices_list, axis=0)
+        for i in range(nDOF):
+            if data_matrix[i,0] == 0: zero_indices_list.append(i)
+            else: non_zero_indices_list.append(i)
+        
+        data_shrinked = np.delete(data_matrix, zero_indices_list, axis=0)
+
+    else:
+        fix_indices_list = [item-1 for item in fix_indices_list] # Make the fixed nodes indexed from 0. 
+        nDOF = data_matrix.shape[0]
+        zero_indices_list, non_zero_indices_list = [], []
+
+        for i in range(int(nDOF/3)): # Iterate within the range of node_num. 
+            if i in fix_indices_list: 
+                zero_indices_list.append(i*3)
+                zero_indices_list.append(i*3+1)
+                zero_indices_list.append(i*3+2)
+            else: 
+                non_zero_indices_list.append(i*3)
+                non_zero_indices_list.append(i*3+1)
+                non_zero_indices_list.append(i*3+2)
+        
+        data_shrinked = np.delete(data_matrix, zero_indices_list, axis=0)
     
     return data_shrinked, nDOF, non_zero_indices_list
     
@@ -467,7 +490,7 @@ def greedyClustering(v_space, initial_pt_index, k, style):
         return []
 
 
-def generateFMIndices(FM_num, total_nodes_num):
+def generateFMIndices(FM_num, fix_node_list, total_nodes_num):
     """
     Generate FM indices for benchmark deformation tracking. 
 
@@ -475,6 +498,8 @@ def generateFMIndices(FM_num, total_nodes_num):
     ----------
         FM_num: Int. 
             Number of FMs. 
+        fix_node_list: List of ints. 
+            Indices of fixed nodes. 
         total_nodes_num: Int. 
             Total number of nodes. 
     
@@ -488,7 +513,8 @@ def generateFMIndices(FM_num, total_nodes_num):
 
     for i in range(FM_num):
         rand_temp = np.random.randint(0, total_nodes_num)
-        if rand_temp not in FM_indices: FM_indices.append(rand_temp)
+        if (rand_temp not in FM_indices and 
+            rand_temp+1 not in fix_node_list): FM_indices.append(rand_temp)
     
     return FM_indices
 
@@ -765,14 +791,17 @@ def main():
     # ********************************** DATA PROCESSING ********************************** #
     # Extract data from .mat file
     data_mat = scipy.io.loadmat("benchmark.mat")
-    v_space, data_x = data_mat["NodeI"], data_mat["xI"] # change the variable's name if necessary. 
+    v_space, data_x, fix_dof_list = data_mat["NodeI"], data_mat["xI"], data_mat["idxFix3"] # change the variable's name if necessary. 
+    fix_node_list = [ind for ind in fix_dof_list if ind % 3 == 0] # Indices of fixed nodes. Indexed from 1. 
 
     # Implement PCA
+    orig_node_num = int(data_x.shape[0] / 3.0)
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
     eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
     
     # Generate FM indices (Founded best initial indices: 381)
+    v_space, _, _ = matrixShrink(v_space, fix_node_list)
     if isKCenter:
         initial_pt_index = 381 # Initial point index for k-center clustering. Randomly assigned. Current best result: 584 (best mean_max_nodal_error: 0.92 mm)
         k = 20 # The number of wanted centers (must be larger than the FM_num). Default: 20. 
@@ -784,7 +813,7 @@ def main():
             center_indices_list = FM_indices
     
     else:
-        FM_indices = generateFMIndices(FM_num, int(data_x.shape[0] / 3.0)) # Randomly obtain FM indices. 
+        FM_indices = generateFMIndices(FM_num, fix_node_list, orig_node_num) # Randomly obtain FM indices.  
         center_indices_list = FM_indices
 
     # Generate train/valid/test tensor dataloaders. 
