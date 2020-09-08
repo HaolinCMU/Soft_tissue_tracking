@@ -608,8 +608,8 @@ class inputFileGenerator(object):
 
 def main():
     abaqus_default_directory = "C:/temp" # Default working directory of Abaqus. 
-    inp_folder = "inp_test"
-    sample_nums = 3
+    inp_folder = "inp_files"
+    sample_nums = 2500
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
