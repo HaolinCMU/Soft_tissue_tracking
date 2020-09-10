@@ -23,7 +23,7 @@ class inputFileGenerator(object):
         Pressure: Pa
     """
 
-    def __init__(self, data_file_name, write_path, fix_indices_list, node_variable_name, elem_variable_name):
+    def __init__(self, data_file_name, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name):
         """
         Initialize parameters. 
 
@@ -33,6 +33,9 @@ class inputFileGenerator(object):
             The file path of information of node, element, etc. 
         write_path: String. 
             The path to write the inp file. 
+        material_type: String. 
+            The type of material. 
+            Used to indicate whether to consider material nonlinearity.
         fix_indices_list: List of ints. 
             The node indices to be fixed. 
         node_variable_name: String. 
@@ -102,11 +105,11 @@ class inputFileGenerator(object):
         self._assembly = self.generateAssembly()
 
         # Material. 
-        self._modulus = 10000000 # Young's modulus. Unit: Pa. 
-        self._poisson_ratio = 0.3 # Poisson's ratio. 
-        self._material = ["*Material, name={}".format(self._material_name),
-                          "*Elastic",
-                          "{}, {}".format(self._modulus, self._poisson_ratio)]
+        self.material_type = material_type # String. Indicate material type. "linear"/"neo_hookean". 
+        self._material_def_file_name = "" # Default: "". If there is a file of stress strain definition, please specify here (must not be ""). 
+        self._modulus = 4e7 # Young's modulus. Unit: Pa. 
+        self._poisson_ratio = 0.48 # Poisson's ratio. 
+        self._material = self.generateMaterial()
         
         # Boundary condition. 
         self._boundary_initial = ["*Boundary"]
@@ -359,6 +362,76 @@ class inputFileGenerator(object):
         return section
     
     
+    def generateMaterial(self):
+        """
+        Generate lines for material definition. 
+
+        Returns:
+        ----------
+            material_lines: List of lines. 
+                The lines of material definition. 
+        """
+
+        material_lines = ["*Material, name={}".format(self._material_name)]
+
+        if self.material_type == "neo_hookean":
+            stress_strain_lines = self._generateNeoHookean(self._modulus, (-0.3, 0.3), file_name=self._material_def_file_name)
+            material_lines += ["*Hyperelastic, neo hooke, test data input, poisson={}".format(self._poisson_ratio), 
+                               "*Uniaxial Test Data"]
+            material_lines += stress_strain_lines
+        elif self.material_type == "linear":
+            material_lines += ["*Elastic",
+                               "{}, {}".format(self._modulus, self._poisson_ratio)]
+        else:
+            self.material_type = "linear"
+            self.generateMaterial()
+
+        return material_lines
+
+
+    def _generateNeoHookean(self, modulus, strain_range, file_name=""):
+        """
+        Import/Generate stress strain data for neo-Hookean material fitting. 
+
+        Parameters:
+        ----------
+            modulus: Float. 
+                The elastic modulus of material. 
+            strain_range: Tuple of floats.
+                Range for strain interpolation. 
+            file_name (optional): String. 
+                The name of stress strain data definition file.
+                Default: "".  
+        
+        Returns:
+        ----------
+            stress_strain_lines: List of strings. 
+                The lines of stress strain data. 
+        """
+
+        if file_name != "": return self.readFile(file_name)
+        else:
+            """
+            Assumptions of neo-Hookean formulation:
+                Incompressible (Poisson's ratio = ~0.5, small deformation).
+                Undergoing uniaxial loading. 
+                Formulation: sigma = 2*C*(stretch - 1/(stretch^2)). 
+                E = 6*C. 
+            """
+
+            strain_data = np.linspace(strain_range[0], strain_range[1], 100)
+
+            stretch_data = strain_data + 1.0
+            stress_data = (self._modulus / 3.0) * (stretch_data - 1.0 / stretch_data**2) # Formulation. 
+
+            stress_strain_lines = []
+
+            for i in range(len(stress_data)):
+                stress_strain_lines.append("%.6f, %.6f" % (stress_data[i], strain_data[i]))
+            
+            return stress_strain_lines
+
+    
     def generateAssembly(self):
         """
         Generate assembly definition. 
@@ -370,7 +443,6 @@ class inputFileGenerator(object):
             instance: The instance definition. 
             nset_boundary: The definition of BC related node set. 
             asssenbly_end: The endline of assembly definition. 
-
         """
 
         # Generate "self.loads_num" nsets, each of which has 1 node. 
@@ -613,6 +685,7 @@ def main():
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
+    material_type = "neo_hookean" # "linear" / "neo_hookean". 
     fix_indices_list = [761, 1000, 1158] # Specify the node to fix. At least 3. Indexed from 1. 
 
     # Generate input file for Abaqus. 
@@ -623,7 +696,7 @@ def main():
         write_path = os.path.join(inp_folder, file_name_temp)
 
         start_time = time.time()
-        inputFile_temp = inputFileGenerator(data_file_path, write_path, fix_indices_list, node_variable_name, elem_variable_name)
+        inputFile_temp = inputFileGenerator(data_file_path, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name)
         inputFile_temp.writeFile()
         end_time = time.time()
         elapsed_time = end_time - start_time
