@@ -107,9 +107,9 @@ class inputFileGenerator(object):
         # Material. 
         self.material_type = material_type # String. Indicate material type. "linear"/"neo_hookean". 
         self._material_def_file_name = "" # Default: "". If there is a file of stress strain definition, please specify here (must not be ""). 
-        self._modulus = 4e7 # Young's modulus. Unit: Pa. 
-        self._poisson_ratio = 0.48 # Poisson's ratio. 
-        self._material = self.generateMaterial()
+        self._modulus = 4e7 # Young's modulus. Unit: Pa. Default: 1e7. 
+        self._poisson_ratio = 0.48 # Poisson's ratio. Default: 0.3. 
+        self._material = self.generateMaterial(self.material_type)
         
         # Boundary condition. 
         self._boundary_initial = ["*Boundary"]
@@ -166,19 +166,36 @@ class inputFileGenerator(object):
         return lines
     
 
-    def writeFile(self):
+    def writeFile(self, write_status):
         """
         Write 'self.write_lines' into a new inp file. 
 
+        Parameters:
+        ----------
+            write_status: String. 
+                "Normal" / "Fast". 
+                    "Normal": generate all definitions; 
+                    "Fast": generate nodes and elements definition only. 
         """
         
-        self._inputFile_lines_total = (self._header + self._part + self._assembly + 
-                                       self._material + self._boundary + self._step + 
-                                       self._load + self._resSettings + self._step_end)
+        if write_status == "Normal":
+            self._inputFile_lines_total = (self._header + self._part + self._assembly + 
+                                        self._material + self._boundary + self._step + 
+                                        self._load + self._resSettings + self._step_end)
 
-        content = '\n'.join(self._inputFile_lines_total)
+            content = '\n'.join(self._inputFile_lines_total)
+            
+            with open(self.writePath, 'w') as f: f.write(content)
         
-        with open(self.writePath, 'w') as f: f.write(content)
+        elif write_status == "Fast":
+            self._inputFile_lines_total = self._header + self._part
+
+            content = '\n'.join(self._inputFile_lines_total)
+            
+            with open(self.writePath, 'w') as f: f.write(content)
+        
+        else:
+            self.writeFile("Normal")
     
 
     def generatePart(self):
@@ -362,9 +379,14 @@ class inputFileGenerator(object):
         return section
     
     
-    def generateMaterial(self):
+    def generateMaterial(self, material_type):
         """
         Generate lines for material definition. 
+
+        Parameters:
+        ----------
+            material_type: String. 
+                Indicate what type of material is used. 
 
         Returns:
         ----------
@@ -374,17 +396,17 @@ class inputFileGenerator(object):
 
         material_lines = ["*Material, name={}".format(self._material_name)]
 
-        if self.material_type == "neo_hookean":
+        if material_type == "neo_hookean":
             stress_strain_lines = self._generateNeoHookean(self._modulus, (-0.3, 0.3), file_name=self._material_def_file_name)
             material_lines += ["*Hyperelastic, neo hooke, test data input, poisson={}".format(self._poisson_ratio), 
                                "*Uniaxial Test Data"]
             material_lines += stress_strain_lines
-        elif self.material_type == "linear":
+        
+        elif material_type == "linear":
             material_lines += ["*Elastic",
                                "{}, {}".format(self._modulus, self._poisson_ratio)]
-        else:
-            self.material_type = "linear"
-            self.generateMaterial()
+        
+        else: material_lines = self.generateMaterial("linear")
 
         return material_lines
 
@@ -687,6 +709,7 @@ def main():
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
     material_type = "neo_hookean" # "linear" / "neo_hookean". 
     fix_indices_list = [761, 1000, 1158] # Specify the node to fix. At least 3. Indexed from 1. 
+    write_status = "Normal" # String. "Normal" / "Fast". "Normal": generate all definitions; "Fast": generate nodes and elements definition only. 
 
     # Generate input file for Abaqus. 
     for i in range(sample_nums):
@@ -697,11 +720,11 @@ def main():
 
         start_time = time.time()
         inputFile_temp = inputFileGenerator(data_file_path, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name)
-        inputFile_temp.writeFile()
+        inputFile_temp.writeFile(write_status)
         end_time = time.time()
         elapsed_time = end_time - start_time
 
-        print("Input_file: ", file_name_temp, "| Status: Normal | Generation: Completed | Time: %.4f s" % (elapsed_time))
+        print("Input_file: ", file_name_temp, "| Status:", write_status, "| Generation: Completed | Time: %.4f s" % (elapsed_time))
     
     mdict = {"fix_indices_list": fix_indices_list,
              "orig_data_file_name": data_file_path,
