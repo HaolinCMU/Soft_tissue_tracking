@@ -57,6 +57,30 @@ class inputFileGenerator(object):
         self._inputFile_lines_total = []
         self.writePath = write_path
 
+        self._modulus = 1e7 # Young's modulus. Unit: Pa. Default: 1e7. 
+        self._poisson_ratio = 0.48 # Poisson's ratio. Linear elastic default: 0.3; neo-Hookean default: 0.48.  
+
+        self._isCoupleOn = True # Boolean. True: use coupling constraint; False: do not use coupling constraint. Must not turn on if applying Laplacian smoothing.  
+        self._coupling_type = "Kinematic" # String. "Kinematic" / "Distributing". 
+        self._coupling_neighbor_layers = 1 # How deep does the neighborhood searching go. Default: 1. 
+
+        self._isLaplacianSmoothingOn = False # Boolean. True: use laplacian smoothing. False: do not use laplacian smoothing.
+        self._laplacian_variable_name = "laplacianMatrixI3" 
+        self._massMatrix_variable_name = "massMatrixI3" 
+        self._laplacian_iter_num = 5
+        self._smoothing_rate = 1e-4
+
+        self.loads_num = 3 # For initial testing.
+        self._load_scale = (0.0, 10.0) # Absolute range of the force for uniform sampling. Case and BC specific. (min, max). Unit: N.
+        self._gaussian_params = (10.0, 2.0) # Mean and deviation of the force for Gaussian sampling. Case and BC specific. (min, max). Unit: N.
+
+        self.autoIncrementNum = 5000 # Int. The maximum increment number of the AutoSolver. 
+        self.initIncrem = 0.001 # Float. The initial length of the increment (for fixed-step, this is also the length per increm). 
+        self.minIncrem = 1e-20 # Float. The minimum increment length for the AutoSolver (ueless for the StaticSolver). 
+        self.maxIncrem = 1.0 # Float. The maximum increment length for the AutoSolver (useless for the StaticSovler). 
+        self.totalTime = 1.0 # Float. The total time for one simulation step. 
+        self.frameNum = 1 # Int. The number of frames intending to extract from the nodal file.
+
         # Header. 
         self._header = ["*Heading"]
 
@@ -78,6 +102,14 @@ class inputFileGenerator(object):
         self._elem_num = None
         self._part = self.generatePart()
 
+        # Load settings.
+        self._loads_nset_name_list = []
+        self._rf_name_list = []
+        self._rf_nset_name_list = []
+        self._rf_nsets = []
+        self._load_nsets = [] # Nset definition of loads.
+        self._load = self.generateLoadSetting() 
+
         # Assembly definition. 
         self._assembly_name = "assembly-1"
         self._instance_name = "instance-1"
@@ -90,38 +122,25 @@ class inputFileGenerator(object):
         self._fix_nset_name = "fix"
         self._fix_indices_list = fix_indices_list
         self._fix_nset = self.generateNset(self._fix_indices_list, self._fix_nset_name, self._instance_name) # Nset definition of fix BC. 
-        self.loads_num = 3 # For initial testing.
-        self._coupling_neighbor_layers = 1 # How deep does the neighborhood searching go. Default: 1. 
-        self._rf_name_list = []
-        self._rf_nset_name_list = []
-        self._rf_nsets = []
-        self._load_nsets = [] # Nset definition of loads. 
+        self._loads_posi_indices_list = self._generateLoadPositions(self.loads_num, self._fix_indices_list) # Generate load positions. Randomly. 
 
         self._surface_list = []
-        self._coupling_list = []
+        self._coupling_list = [] 
 
         self._nset_boundary = [] # All nsets definitions in assembly. Boundary conditions
         self._assembly_end = ["*End Assembly"]
         self._assembly = self.generateAssembly()
 
         # Material. 
-        self.material_type = material_type # String. Indicate material type. "linear"/"neo_hookean". 
+        self.material_type = material_type # String. Indicate material type. "linear"/"neo_hookean_fitting"/"neo_hookean_solid". 
         self._material_def_file_name = "" # Default: "". If there is a file of stress strain definition, please specify here (must not be ""). 
-        self._modulus = 4e7 # Young's modulus. Unit: Pa. Default: 1e7. 
-        self._poisson_ratio = 0.48 # Poisson's ratio. Default: 0.3. 
         self._material = self.generateMaterial(self.material_type)
         
         # Boundary condition. 
         self._boundary_initial = ["*Boundary"]
         self._boundary = self.generateBoundaryCondition_fixAll()
 
-        # Step settings. 
-        self.autoIncrementNum = 5000 # Int. The maximum increment number of the AutoSolver. 
-        self.initIncrem = 0.001 # Float. The initial length of the increment (for fixed-step, this is also the length per increm). 
-        self.minIncrem = 1e-20 # Float. The minimum increment length for the AutoSolver (ueless for the StaticSolver). 
-        self.maxIncrem = 1.0 # Float. The maximum increment length for the AutoSolver (useless for the StaticSovler). 
-        self.totalTime = 1.0 # Float. The total time for one simulation step. 
-        self.frameNum = 1 # Int. The number of frames intending to extract from the nodal file. 
+        # Step settings.  
         self.freq = int(self.autoIncrementNum / self.frameNum) # Int. The data frame extraction frequency (also refers to the number of increments. Extract one frame per "self.freq" increments). Especially for StaticSolver case.  
         
         self._step = ["*Step, name=step-1, nlgeom=YES, inc={}".format(self.autoIncrementNum),
@@ -129,10 +148,6 @@ class inputFileGenerator(object):
                       "{}, {}, {}, {}".format(self.initIncrem, self.totalTime, 
                                               self.minIncrem, self.maxIncrem)] # Auto solver. 
         self._step_end = ["*End Step"]
-
-        # Load settings.
-        self._load_scale = (0.0, 10.0) # Absolute range of the force. Case and BC specific. (min, max). Unit: N. 
-        self._load = self.generateLoadSetting()
 
         # Rest settings. 
         self._restart = ["*Restart, write, frequency=0"]
@@ -396,12 +411,18 @@ class inputFileGenerator(object):
 
         material_lines = ["*Material, name={}".format(self._material_name)]
 
-        if material_type == "neo_hookean":
-            stress_strain_lines = self._generateNeoHookean(self._modulus, (-0.3, 0.3), file_name=self._material_def_file_name)
+        if material_type == "neo_hookean_fitting":
+            stress_strain_lines = self._generateNeoHookeanFitting(self._modulus, (-0.3, 0.3), file_name=self._material_def_file_name)
             material_lines += ["*Hyperelastic, neo hooke, test data input, poisson={}".format(self._poisson_ratio), 
                                "*Uniaxial Test Data"]
             material_lines += stress_strain_lines
         
+        elif material_type == "neo_hookean_solid":
+            c10 = self._modulus / (4 * (1 + self._poisson_ratio))
+            d1 = 6 * (1 - 2 * self._poisson_ratio) / self._modulus
+            material_lines += ["*Hyperelastic, neo hooke",
+                               "{}, {}".format(c10, d1)]
+
         elif material_type == "linear":
             material_lines += ["*Elastic",
                                "{}, {}".format(self._modulus, self._poisson_ratio)]
@@ -411,7 +432,7 @@ class inputFileGenerator(object):
         return material_lines
 
 
-    def _generateNeoHookean(self, modulus, strain_range, file_name=""):
+    def _generateNeoHookeanFitting(self, modulus, strain_range, file_name=""):
         """
         Import/Generate stress strain data for neo-Hookean material fitting. 
 
@@ -454,6 +475,84 @@ class inputFileGenerator(object):
             return stress_strain_lines
 
     
+    def _generateLoadPositions(self, loads_num, fix_indices_list):
+        """
+        Randomly generate positions of the load. 
+
+        Parameters: 
+        ----------
+            loads_num: Int. 
+                Number of loads.
+            fix_indices_list: List of ints. 
+                Indices of fixed nodes. 
+
+        Returns:
+        ----------
+            loads_posi_indices_list: List of ints.
+                Picked indices for load application positions. 
+        """
+
+        loads_posi_indices_list = []
+
+        for i in range(loads_num):
+            while(True):
+                load_posi_index_temp = np.random.randint(1, self._surface_nodes_num+1) # Randomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
+                if load_posi_index_temp not in fix_indices_list: break # The randomly generated index cannot be one of the fixed nodes. 
+            
+            loads_posi_indices_list.append(load_posi_index_temp)
+
+        return loads_posi_indices_list
+    
+
+    def _generateLoadValues(self, output_dimension, load_scale, sampling_style="uniform"):
+        """
+        Randomly generate force values for load component definition.
+        Using function: numpy.random.rand(). 
+
+        Parameters:
+        ----------
+            output_dimension: Tuple of ints.
+                The shape of output random array.  
+                Size: 2*1. (dim1, dim2). 
+            load_scale: Tuple of floats.
+                Size: 2*1. (min_laod, max_laod) / (mean, deviation). 
+            sampling_style (optional): String. 
+                Indicating the type of sampling. 
+                    "uniform": uniform distribution. 
+                    "gaussian": Gaussian distribution. 
+                Default: "uniform". 
+        
+        Returns:
+        ----------
+            load_result: Array of floats.
+                Size: output_dimension. 
+        """
+        
+        if sampling_style == "uniform":
+            load_result = (np.random.rand(output_dimension[0], output_dimension[1]) * 2 - 1) * abs(load_scale[1] - load_scale[0])
+            load_result = load_result.reshape(-1,1)
+
+            for index, load_value_temp in enumerate(load_result):
+                if load_value_temp < 0: load_result[index] -= self._load_scale[0]
+                else: load_result[index] += self._load_scale[0]
+            
+            load_result = load_result.reshape(output_dimension[0], output_dimension[1])
+        
+        elif sampling_style == "gaussian":
+            mean, deviation = load_scale[0], load_scale[1]
+            load_result = np.random.normal(mean, deviation, size=output_dimension)
+            load_result = load_result.reshape(-1,1)
+
+            for index, load_value_temp in enumerate(load_result):
+                if np.random.rand() <= 0.5: load_result[index] *= -1
+            
+            load_result = load_result.reshape(output_dimension[0], output_dimension[1])
+        
+        else: load_result = self._generateLoadValues(output_dimension, load_scale)
+
+        return load_result
+
+    
     def generateAssembly(self):
         """
         Generate assembly definition. 
@@ -468,32 +567,62 @@ class inputFileGenerator(object):
         """
 
         # Generate "self.loads_num" nsets, each of which has 1 node. 
-        for i in range(self.loads_num): 
-            ref_name_temp = "rf-{}".format(i+1)
-            ref_nset_name_temp = "rf-{}-nset".format(i+1)
-            self._rf_name_list.append(ref_name_temp)
-            self._rf_nset_name_list.append(ref_nset_name_temp)
+                
+        if self._isCoupleOn:
+            for i, load_posi_index_temp in enumerate(self._loads_posi_indices_list): 
+                ref_name_temp = "rf-{}".format(i+1)
+                ref_nset_name_temp = "rf-{}-nset".format(i+1)
+                self._rf_name_list.append(ref_name_temp)
+                self._rf_nset_name_list.append(ref_nset_name_temp)
 
-            while(True):
-                load_posi_index_temp = np.random.randint(1, self._surface_nodes_num+1) # Randomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
-                if load_posi_index_temp not in self._fix_indices_list: break # The randomly generated index cannot be one of the fixed nodes. 
-            
-            # Generate assembly node definitions for reference points. 
-            ref_node_list_temp = ["*Node"]
-            ref_pt_coord_list_temp = [float(item) for item in self._node[load_posi_index_temp].split(',')[1:]]
-            self.generateNodes(np.array(ref_pt_coord_list_temp).astype(float).reshape(1,-1), ref_node_list_temp, 
-                               specified_indices_list=[i+1])
-            self._ref_nodes_list += copy.deepcopy(ref_node_list_temp)
-            rf_nset_list_temp = self._findCouplingNodes(load_posi_index_temp, self._coupling_neighbor_layers)
+                # Generate assembly node definitions for reference points. 
+                ref_node_list_temp = ["*Node"]
+                ref_pt_coord_list_temp = [float(item) for item in self._node[load_posi_index_temp].split(',')[1:]]
+                self.generateNodes(np.array(ref_pt_coord_list_temp).astype(float).reshape(1,-1), ref_node_list_temp, 
+                                specified_indices_list=[i+1])
+                self._ref_nodes_list += copy.deepcopy(ref_node_list_temp)
+                rf_nset_list_temp = self._findCouplingNodes(load_posi_index_temp, self._coupling_neighbor_layers)
 
-            # Generate reference point node sets. 
-            self._load_nsets += self.generateNset([i+1], ref_name_temp)
+                # Generate reference point node sets. 
+                self._load_nsets += self.generateNset([i+1], ref_name_temp)
+                
+                # Generate coupling constraint node sets. 
+                self._rf_nsets += self.generateNset(rf_nset_list_temp, ref_nset_name_temp, 
+                                                    self._instance_name)
             
-            # Generate coupling constraint node sets. 
-            self._rf_nsets += self.generateNset(rf_nset_list_temp, ref_nset_name_temp, 
-                                                  self._instance_name)
+            self.generateCoupling()
         
-        self.generateCoupling()
+        else:
+            if self._isLaplacianSmoothingOn:
+                force_vector_temp = np.zeros(shape=(3*self._surface_nodes_num, 1))
+
+                for load_posi_index_temp in self._loads_posi_indices_list:
+                    force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = self._generateLoadValues((3,1), self._gaussian_params, sampling_style="gaussian")
+                
+                laplacian_matrix, mass_matrix = self.data_mat[self._laplacian_variable_name], self.data_mat[self._massMatrix_variable_name]
+
+                force_vector_new = self._laplacianSmoothing(force_vector_temp, laplacian_matrix, mass_matrix, iter_num=self._laplacian_iter_num, 
+                                                            smoothing_rate=self._smoothing_rate) # Size: (nSurfI x 3)*1. Fix force value: initial_BC_state="fix". 
+
+                self._loads_posi_indices_list = copy.deepcopy([(list(force_vector_new).index(item)//3)+1 for item in list(force_vector_new) if item != 0]) # Indexed from 1.
+                self._loads_posi_indices_list = list(set(self._loads_posi_indices_list))
+                self._loads_posi_indices_list.sort()
+
+                for i, load_posi_index_temp in enumerate(self._loads_posi_indices_list):
+                    load_nset_name_temp = "Load-{}".format(i+1)
+                    self._loads_nset_name_list.append(load_nset_name_temp)
+                    
+                    self._load_nsets += self.generateNset([load_posi_index_temp], load_nset_name_temp, self._instance_name)
+                    self._load = self.generateLoadSetting(force_list=list(force_vector_new.reshape(-1,1)))
+            
+            else:
+                for i, load_posi_index_temp in enumerate(self._loads_posi_indices_list):
+                    load_nset_name_temp = "Load-{}".format(i+1)
+                    self._loads_nset_name_list.append(load_nset_name_temp)
+                    
+                    self._load_nsets += self.generateNset([load_posi_index_temp], load_nset_name_temp, self._instance_name)
+     
+        # Concatenate assembly subparts. 
         self._nset_boundary = self._nset_boundary + self._load_nsets + self._rf_nsets + self._fix_nset + self._surface_list + self._coupling_list
 
         return (self._assembly_initial + self._instance + self._ref_nodes_list + self._nset_boundary + self._assembly_end)
@@ -510,7 +639,7 @@ class inputFileGenerator(object):
             self._coupling_list += ["*Coupling, constraint name={}, ref node={}, surface={}_CNS_".format(self._rf_name_list[index], 
                                                                                                          self._rf_name_list[index],
                                                                                                          rf_name),
-                                    "*Kinematic"]
+                                    "*{}".format(self._coupling_type)]
     
 
     def _findCouplingNodes(self, rf_node_ind, neighbor_layers):
@@ -567,35 +696,90 @@ class inputFileGenerator(object):
         return (self._boundary_initial + BC_list_temp)
     
 
-    def generateLoadSetting(self):
+    def generateLoadSetting(self, force_list=[]):
         """
         Generate load information. 
 
         Returns:
         ----------
-        load_list: List of strings. 
-            Definition of concentrated forces. 
-
+            load_list: List of strings. 
+                Definition of concentrated forces. 
+            force_list (optional): List of forces (floats). 
+                Size: loads_num * 3. 
+                Default: [].
         """
 
         load_list = []
 
-        for rf_name in self._rf_name_list: # Length: self._loads_num
-            load_temp = ["*Cload, op=NEW"]
+        if force_list == []: 
+            force_list = list(self._generateLoadValues((self.loads_num*3, 1), self._gaussian_params, sampling_style="gaussian"))
 
-            for i in range(3): # 3: Three directions. 
-                load_value_temp = (np.random.rand() * 2 - 1) * abs(self._load_scale[1] - self._load_scale[0])
-
-                if load_value_temp < 0: load_value_temp -= self._load_scale[0]
-                else: load_value_temp += self._load_scale[0]
-
-                load_temp.append("{}, {}, {}".format(rf_name, i+1, load_value_temp))
+            for index, load_value_temp in enumerate(force_list):
+                if load_value_temp < 0: force_list[index] -= self._load_scale[0]
+                else: force_list[index] += self._load_scale[0]
             
-            load_list += copy.deepcopy(load_temp)
-        
+        force_list = np.array(force_list).astype(float).reshape(-1,3) # 2D Array of floats. Size: self._loads_num * 3. 
+
+        if self._isCoupleOn:
+            for j, rf_name in enumerate(self._rf_name_list): # Length: self._loads_num
+                load_temp = ["*Cload, op=NEW"]
+
+                for i in range(force_list.shape[1]): # 3: Three directions. 
+                    load_temp.append("{}, {}, {}".format(rf_name, i+1, force_list[j,i]))
+                
+                load_list += copy.deepcopy(load_temp)
+
+        else:
+            for j, load_name in enumerate(self._loads_nset_name_list): # Length: length of self._loads_nset_name_list. 
+                load_temp = ["*Cload"]
+
+                for i in range(force_list.shape[1]): # 3: Three directions.
+                    load_temp.append("{}, {}, {}".format(load_name, i+1, force_list[self._loads_posi_indices_list[j]-1,i]))
+            
+                load_list += copy.deepcopy(load_temp)
+       
         return load_list
     
     
+    def _laplacianSmoothing(self, force_vector, laplacian_matrix, mass_matrix, iter_num=3, smoothing_rate=1e-4, initial_BC_state=""):
+        """
+        Implement laplacian smoothing based on pre-calculated Laplacian matrix. 
+
+        Parameters:
+        ----------
+            force_vector: 1D Array of floats.
+                With concentrated force values applied at the specidied nodes. 
+                Size: (self._surface_nodes_num x 3) * 1. 
+            laplacian_matrix: 2D Array of floats.
+                Size: (self._surface_nodes_num x 3) * (self._surface_nodes_num x 3).
+            mass_matrix: 2D Array of floats.
+                Diagonal matrix. 
+                Size: (self._surface_nodes_num x 3) * (self._surface_nodes_num x 3).
+            Iter_num (optional): Int. 
+                The number of smoothing iterations.
+                Default: 3. 
+            smoothing_rate (optional): float.
+                The coefficient that control the step size of smoothing. 
+                Default: 1e-4. 
+            initial_BC_state (optional): String. 
+                Indicating whether to "fix" or "decay" the original concentrated force value.
+                Default: "". Indicating smoothing including the original forces.  
+        Forward Euler. 
+        """
+
+        force_vector_new = copy.deepcopy(force_vector)
+        for i in range(iter_num): 
+            force_vector_new += smoothing_rate * (laplacian_matrix @ force_vector_new) # Without mass matrix. 
+            # force_vector_new += smoothing_rate * (mass_matrix @ laplacian_matrix @ force_vector_new) # With mass matrix (NOT recommended). 
+
+            if initial_BC_state == "fix":
+                for j, value in enumerate(force_vector):
+                    if value != 0:
+                        force_vector_new[j] = value
+
+        return force_vector_new
+
+
     def _computeMidPoint(self, ind_1, ind_2):
         """
         Compute the mid-point of the edge. 
@@ -707,7 +891,7 @@ def main():
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
-    material_type = "neo_hookean" # "linear" / "neo_hookean". 
+    material_type = "neo_hookean_solid" # "linear" / "neo_hookean_fitting" / "neo_hookean_solid". 
     fix_indices_list = [761, 1000, 1158] # Specify the node to fix. At least 3. Indexed from 1. 
     write_status = "Normal" # String. "Normal" / "Fast". "Normal": generate all definitions; "Fast": generate nodes and elements definition only. 
 
@@ -723,6 +907,8 @@ def main():
         inputFile_temp.writeFile(write_status)
         end_time = time.time()
         elapsed_time = end_time - start_time
+
+        # print(inputFile_temp._loads_posi_indices_list)
 
         print("Input_file: ", file_name_temp, "| Status:", write_status, "| Generation: Completed | Time: %.4f s" % (elapsed_time))
     
