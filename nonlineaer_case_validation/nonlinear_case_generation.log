@@ -1,0 +1,20 @@
+Data_file_name: data_head_and_neck.mat
+Sample_num = 3
+Fixed_indices_list (indexed from 1): [761, 1000, 1158]
+Material type: neo_hookean_solid
+Elastic modulus = 10000000.0 Pa
+Poisson's ratio = 0.48
+Loads_num = 3
+Load sampling type: gaussian
+Load sampling parameters (mean, dev): (10.0, 2.0)
+Coupling constraint status: Off
+Laplacian smoothing status: On
+Laplacian smoothing iteration numbers = 5
+Laplacian_smoothing_rate = 0.0001
+----------------------------------------------------------
+Input file		Export status	Generation status	Elapsed time/s
+10001.inp		Normal		Completed		4.39297771
+10002.inp		Normal		Completed		3.17894816
+10003.inp		Normal		Completed		2.57427001
+----------------------------------------------------------
+Elapsed_time_total = 10.146195888519287 s

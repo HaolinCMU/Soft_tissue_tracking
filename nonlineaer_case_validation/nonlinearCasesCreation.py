@@ -60,19 +60,21 @@ class inputFileGenerator(object):
         self._modulus = 1e7 # Young's modulus. Unit: Pa. Default: 1e7. 
         self._poisson_ratio = 0.48 # Poisson's ratio. Linear elastic default: 0.3; neo-Hookean default: 0.48.  
 
-        self._isCoupleOn = True # Boolean. True: use coupling constraint; False: do not use coupling constraint. Must not turn on if applying Laplacian smoothing.  
+        self._isCoupleOn = False # Boolean. True: use coupling constraint; False: do not use coupling constraint. Must not turn on if applying Laplacian smoothing.  
         self._coupling_type = "Kinematic" # String. "Kinematic" / "Distributing". 
         self._coupling_neighbor_layers = 1 # How deep does the neighborhood searching go. Default: 1. 
 
-        self._isLaplacianSmoothingOn = False # Boolean. True: use laplacian smoothing. False: do not use laplacian smoothing.
+        self._isLaplacianSmoothingOn = True # Boolean. True: use laplacian smoothing. False: do not use laplacian smoothing.
         self._laplacian_variable_name = "laplacianMatrixI3" 
         self._massMatrix_variable_name = "massMatrixI3" 
         self._laplacian_iter_num = 5
         self._smoothing_rate = 1e-4
 
         self.loads_num = 3 # For initial testing.
+        self._load_sampling_style = "gaussian" # String. Indicating the type of random sampling for force components. "uniform" / "gaussian". 
         self._load_scale = (0.0, 10.0) # Absolute range of the force for uniform sampling. Case and BC specific. (min, max). Unit: N.
-        self._gaussian_params = (10.0, 2.0) # Mean and deviation of the force for Gaussian sampling. Case and BC specific. (min, max). Unit: N.
+        self._gaussian_params = (10.0, 2.0) # Mean and deviation of the force for Gaussian sampling. Case and BC specific. (mean, deviation). Unit: N.
+        self._load_params_tuple = None
 
         self.autoIncrementNum = 5000 # Int. The maximum increment number of the AutoSolver. 
         self.initIncrem = 0.001 # Float. The initial length of the increment (for fixed-step, this is also the length per increm). 
@@ -80,6 +82,16 @@ class inputFileGenerator(object):
         self.maxIncrem = 1.0 # Float. The maximum increment length for the AutoSolver (useless for the StaticSovler). 
         self.totalTime = 1.0 # Float. The total time for one simulation step. 
         self.frameNum = 1 # Int. The number of frames intending to extract from the nodal file.
+
+        # ================== Load sampling variables ================== #
+
+        if self._load_sampling_style == "gaussian": self._load_params_tuple = self._gaussian_params
+        elif self._load_sampling_style == "uniform": self._load_params_tuple = self._load_scale
+        else: 
+            self._load_sampling_style = "uniform"
+            self._load_params_tuple = self._load_scale
+
+        # ============================================================= #
 
         # Header. 
         self._header = ["*Heading"]
@@ -597,7 +609,7 @@ class inputFileGenerator(object):
                 force_vector_temp = np.zeros(shape=(3*self._surface_nodes_num, 1))
 
                 for load_posi_index_temp in self._loads_posi_indices_list:
-                    force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = self._generateLoadValues((3,1), self._gaussian_params, sampling_style="gaussian")
+                    force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = self._generateLoadValues((3,1), self._load_params_tuple, sampling_style=self._load_sampling_style)
                 
                 laplacian_matrix, mass_matrix = self.data_mat[self._laplacian_variable_name], self.data_mat[self._massMatrix_variable_name]
 
@@ -712,11 +724,7 @@ class inputFileGenerator(object):
         load_list = []
 
         if force_list == []: 
-            force_list = list(self._generateLoadValues((self.loads_num*3, 1), self._gaussian_params, sampling_style="gaussian"))
-
-            for index, load_value_temp in enumerate(force_list):
-                if load_value_temp < 0: force_list[index] -= self._load_scale[0]
-                else: force_list[index] += self._load_scale[0]
+            force_list = list(self._generateLoadValues((self.loads_num*3, 1), self._load_params_tuple, sampling_style=self._load_sampling_style))
             
         force_list = np.array(force_list).astype(float).reshape(-1,3) # 2D Array of floats. Size: self._loads_num * 3. 
 
@@ -743,7 +751,9 @@ class inputFileGenerator(object):
     
     def _laplacianSmoothing(self, force_vector, laplacian_matrix, mass_matrix, iter_num=3, smoothing_rate=1e-4, initial_BC_state=""):
         """
-        Implement laplacian smoothing based on pre-calculated Laplacian matrix. 
+        Implement laplacian smoothing based on pre-calculated Laplacian matrix.
+        Formulation: Forward Euler.
+            F_(n+1) = (I + lambda*massMatrix*Laplacian) * F_n 
 
         Parameters:
         ----------
@@ -763,8 +773,7 @@ class inputFileGenerator(object):
                 Default: 1e-4. 
             initial_BC_state (optional): String. 
                 Indicating whether to "fix" or "decay" the original concentrated force value.
-                Default: "". Indicating smoothing including the original forces.  
-        Forward Euler. 
+                Default: "". Indicating smoothing including the original forces.   
         """
 
         force_vector_new = copy.deepcopy(force_vector)
@@ -884,6 +893,129 @@ class inputFileGenerator(object):
         self._node_num = len(self._node) - 1
 
 
+def saveLog(file_name_list, elapsed_time_list, write_status, data_file_name, 
+            sample_num, fix_indices_list, loads_num, load_sampling_type, load_param_tuple, 
+            material_type, modulus, poisson_ratio, isCoupleOn, isLaplacianSmoothingOn, 
+            coupling_type="", coupling_neighbor_layer_num=1, 
+            laplacian_iter_num=5, laplacian_smoothing_rate=1e-4, write_path="nonlinear_case_generation.log"):
+    """
+    Save the nonlinear cases generation results into .log file. 
+
+    Parameters:
+    ----------
+        file_name_list: List of strings. 
+            Names of generated files. 
+        elapsed_time_list: List of floats. 
+            Elapsed time of generation for each input file.
+            In exact order. 
+        write_status: String. 
+            Indicating the type of input file generation. 
+            "Normal" / "Fast": 
+                "Normal": generate all definitions; 
+                "Fast": generate nodes and elements definition only.
+        data_file_name: String. 
+            The name of modeling data file.
+            Format: .mat
+        sample_num: Int. 
+            Number of generated input files. 
+        fix_indices_list: List of ints.
+            Indices of fixed points.  
+            Indexed from 1. 
+        loads_num: Int. 
+            The number of concentrated forces.
+        load_sampling_type: String.
+            The distribution type for force sampling. 
+            "uniform" / "gaussian": 
+                "uniform": uniform distribution with specified (min, max) range.
+                "gaussian": gaussian distribution with specified (mean, dev) parameters. 
+        load_param_tuple: tuple of floats.
+            Parameters of load sampling. 
+            load_sampling_type specific. 
+        material_type: String. 
+            The type of material.
+            "linear" / "neo_hookean_solid" / "neo_hookean_fitting":
+                "linear": linear elastic material.
+                "neo_hookean_solid": neo-Hookean solid following the stain energy formulation. 
+                "neo_hookean_fitting": neo-Hookean solid following the strass-strain curved fitted from user-input strss-strain data. 
+        modulus: Float. 
+            Elastic modulus of the material.
+        poisson_ratio: Float.
+            Poisson's ratio of the material. 
+        isCoupleOn: Boolean indicator. 
+            True: using coupling constraint for local force distribution.
+            False: not using coupling constraint.   
+        isLaplacianSmoothingOn: Boolean indicator.
+            True: using Laplacian-Beltrami operator matrix to smooth the force distribution.
+            False: not using Laplacian smoothing. 
+        coupling_type (optional): String.
+            The type of coupling constraint. 
+            Default: "".
+        coupling_neighbor_layer_num (optional): Int. 
+            The number of neighbor layers to which the local force distributing goes. 
+            Default: 1. 
+        laplacian_iter_num (optional): Int. 
+            The number of iteration for laplacian smoothing. 
+            Default: 5.
+        laplacian_smoothing_rate (optional): Float. 
+            The rate of Laplacian smoothing. 
+            Default: 1e-4.
+        write_path (optional): String. 
+            The path of to-be-written file. 
+            Default: "nonlinear_case_generation.log". 
+    """
+
+    if isCoupleOn: isCoupleOn_status = "On"
+    else: isCoupleOn_status = "Off"
+
+    if isLaplacianSmoothingOn: isLaplacianSmoothingOn_status = "On"
+    else: isLaplacianSmoothingOn_status = "Off"
+
+    content = ["Data_file_name: {}".format(data_file_name), 
+               "Sample_num = {}".format(sample_num),
+               "Fixed_indices_list (indexed from 1): {}".format(fix_indices_list),
+               "Material type: {}".format(material_type),
+               "Elastic modulus = {} Pa".format(modulus),
+               "Poisson's ratio = {}".format(poisson_ratio), 
+               "Loads_num = {}".format(loads_num)]
+
+    if load_sampling_type == "uniform":
+        content += ["Load sampling type: {}".format(load_sampling_type),
+                    "Load sampling range (min, max): {}".format(load_param_tuple)]
+    elif load_sampling_type == "gaussian":
+        content += ["Load sampling type: {}".format(load_sampling_type),
+                    "Load sampling parameters (mean, dev): {}".format(load_param_tuple)]
+    else:
+        load_sampling_type = "uniform"
+        content += ["Load sampling type: {}".format(load_sampling_type),
+                    "Load sampling range (min, max): {}".format(load_param_tuple)]
+
+    content += ["Coupling constraint status: {}".format(isCoupleOn_status),
+                "Laplacian smoothing status: {}".format(isLaplacianSmoothingOn_status)]
+
+    if isCoupleOn:
+        content += ["Coupling type: {}".format(coupling_type),
+                    "Coupling neighbor layer numbers: {}".format(coupling_neighbor_layer_num)]
+    
+    if isLaplacianSmoothingOn:
+        content += ["Laplacian smoothing iteration numbers = {}".format(laplacian_iter_num), 
+                    "Laplacian smoothing rate = {}".format(laplacian_smoothing_rate)]
+    
+    content += ["----------------------------------------------------------",
+                "Input file\t\tExport status\tGeneration status\tElapsed time/s"]
+
+    elapsed_time_total = 0
+    for i, file_name in enumerate(file_name_list):
+        data_string_temp = "{}\t\t{}\t\tCompleted\t".format(file_name, write_status) + "\t%.8f" % (elapsed_time_list[i])
+        content.append(data_string_temp)
+        elapsed_time_total += elapsed_time_list[i]
+    
+    content += ["----------------------------------------------------------",
+                "Total elapsed time: {} s".format(elapsed_time_total)]
+    content = '\n'.join(content)
+    
+    with open(write_path, 'w') as f: f.write(content)
+
+
 def main():
     abaqus_default_directory = "C:/temp" # Default working directory of Abaqus. 
     inp_folder = "inp_files"
@@ -896,6 +1028,8 @@ def main():
     write_status = "Normal" # String. "Normal" / "Fast". "Normal": generate all definitions; "Fast": generate nodes and elements definition only. 
 
     # Generate input file for Abaqus. 
+    file_name_list, elapsed_time_list = [], []
+
     for i in range(sample_nums):
         if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
         
@@ -908,9 +1042,20 @@ def main():
         end_time = time.time()
         elapsed_time = end_time - start_time
 
+        file_name_list.append(file_name_temp)
+        elapsed_time_list.append(elapsed_time)
+
         # print(inputFile_temp._loads_posi_indices_list)
 
         print("Input_file: ", file_name_temp, "| Status:", write_status, "| Generation: Completed | Time: %.4f s" % (elapsed_time))
+
+    saveLog(file_name_list, elapsed_time_list, write_status, data_file_path, sample_nums, 
+            fix_indices_list, inputFile_temp.loads_num, inputFile_temp._load_sampling_style, inputFile_temp._load_params_tuple, 
+            material_type, inputFile_temp._modulus, inputFile_temp._poisson_ratio, 
+            inputFile_temp._isCoupleOn, inputFile_temp._isLaplacianSmoothingOn, 
+            coupling_type=inputFile_temp._coupling_type, coupling_neighbor_layer_num=inputFile_temp._coupling_neighbor_layers, 
+            laplacian_iter_num=inputFile_temp._laplacian_iter_num, laplacian_smoothing_rate=inputFile_temp._smoothing_rate, 
+            write_path="nonlinear_case_generation.log")
     
     mdict = {"fix_indices_list": fix_indices_list,
              "orig_data_file_name": data_file_path,
