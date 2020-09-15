@@ -85,6 +85,9 @@ class inputFileGenerator(object):
 
         # ================== Load sampling variables ================== #
 
+        if self._isCoupleOn: self._couple_region_num = self.loads_num
+        else: self._couple_region_num = 0
+
         if self._load_sampling_style == "gaussian": self._load_params_tuple = self._gaussian_params
         elif self._load_sampling_style == "uniform": self._load_params_tuple = self._load_scale
         else: 
@@ -1065,7 +1068,7 @@ def main():
              "results_folder_path_stress": results_folder_path_stress,
              "results_folder_path_coor": results_folder_path_coor,
              "original_node_number": inputFile_temp._orig_node_num,
-             "loads_num": inputFile_temp.loads_num
+             "couple_region_num": inputFile_temp._couple_region_num
             }
 
     scipy.io.savemat("training_parameters_transfer.mat", mdict)

@@ -741,7 +741,7 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
         original_node_number: Int. 
             The number of original nodes. Excluding edge's midpoints. 
         loads_num: Int. 
-            The number of loads = number of rf points = the header legnth of the coordinate .csv file, 
+            The number of couple regions = number of rf points = the header legnth of the coordinate .csv file, 
         results_folder_path: String. 
             The path of the directory containing the result .csv files. 
     
@@ -842,7 +842,7 @@ def main():
     data_mat = scipy.io.loadmat(transfer_data_mat["orig_data_file_name"][0])
 
     original_node_number = transfer_data_mat["original_node_number"][0][0]
-    loads_num = transfer_data_mat["loads_num"][0][0]
+    loads_num = transfer_data_mat["couple_region_num"][0][0]
     fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
     v_space = data_mat[transfer_data_mat["orig_config_var_name"][0]]
     data_x = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
