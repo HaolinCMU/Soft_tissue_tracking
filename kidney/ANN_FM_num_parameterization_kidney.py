@@ -804,6 +804,7 @@ def main():
     isNormOn = False # True/Flase: Normalization on/off.
     ANN_folder_path = "ANN_FM_num_parameterization" # The directory of trained ANN models. 
     figure_folder_path = "figure" # The directory of figure folder. 
+    FEM_folder_path = "FEM_pipeline" # The directory of FEM pipeline folder, as well as the directory of the deformation benchmark file.
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
 
     if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
@@ -815,7 +816,7 @@ def main():
 
     # ********************************** DATA PROCESSING ********************************** #
     # Extract data from .mat file
-    data_mat = scipy.io.loadmat("benchmark.mat")
+    data_mat = scipy.io.loadmat(os.path.join(FEM_folder_path, "benchmark.mat"))
     v_space, data_x, fix_dof_list = data_mat["NodeI"], data_mat["xI"], data_mat["idxFix3"] # change the variable's name if necessary. 
     fix_node_list = [ind for ind in fix_dof_list if ind % 3 == 0] # Indices of fixed nodes. Indexed from 1. 
 
