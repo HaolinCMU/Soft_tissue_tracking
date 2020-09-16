@@ -269,7 +269,7 @@ def zeroMean(data_matrix):
     return data_new, mean_vect
 
 
-def PCA(data_matrix, PC_num):
+def PCA(data_matrix, PC_num, training_ratio):
     """
     Implement PCA on tumor's deformation covariance matrix (Encoder). 
 
@@ -277,9 +277,11 @@ def PCA(data_matrix, PC_num):
     ----------
         data_matrix: 2D Array. 
             Size: nNodes*3 x SampleNum. 
-            Each DOF is a feature. Mean-shifted. 
+            Each DOF is a feature. Mean-shifted.  
         PC_num: Int. 
             The number of picked PCs.
+        training_ratio: float.
+            The ratio of training dataset.
 
     Returns:
     ----------
@@ -301,7 +303,8 @@ def PCA(data_matrix, PC_num):
     """
     
     # Compute covariance matrix & Eigendecompostion
-    cov_matrix = data_matrix @ np.transpose(data_matrix) # Size: nDOF * nDOF
+    training_index = int(np.ceil(data_matrix.shape[1] * training_ratio)) # Samples along with axis-1.
+    cov_matrix = data_matrix[:,0:training_index] @ np.transpose(data_matrix[:,0:training_index]) # Size: nDOF * nDOF
     eigVal_full, eigVect_full = np.linalg.eig(cov_matrix)
     
     # PCA
@@ -798,7 +801,7 @@ def main():
     orig_node_num = int(data_x.shape[0] / 3.0)
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
-    eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
+    eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num, training_ratio) # PCA on training deformation matrix. 
     
     # Generate FM indices (Founded best initial indices: 96, 217, 496, 523, 564, 584, 1063)
     v_space, _, _ = matrixShrink(v_space, fix_node_list)
