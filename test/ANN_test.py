@@ -451,6 +451,7 @@ def main():
     """
     ANN testing for external unseen dataset. 
     Use the results from the same geometry. 
+    Run "resultPlot.py" afterwards.
     """
 
     result_mat_file_name = "ANN_benchmark_results.mat"
@@ -474,8 +475,7 @@ def main():
     neural_net.load_state_dict(torch.load(ANN_model_file_name))
 
     original_node_number = transfer_data_mat["original_node_number"][0][0]
-    # loads_num = transfer_data_mat["couple_region_num"][0][0]
-    loads_num = 3
+    loads_num = transfer_data_mat["couple_region_num"][0][0]
     fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
     test_data = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
                                    transfer_data_mat["orig_config_var_name"][0], 
