@@ -454,7 +454,7 @@ def main():
     Run "resultPlot.py" afterwards.
     """
 
-    result_mat_file_name = "ANN_benchmark_results.mat"
+    result_mat_file_name = "ANN_benchmark_results_laplacian_significant.mat"
     transfer_mat_file_name = "training_parameters_transfer.mat"
     result_mat = scipy.io.loadmat(result_mat_file_name)
     transfer_data_mat = scipy.io.loadmat(transfer_mat_file_name)
@@ -469,7 +469,8 @@ def main():
     isNormOn = False # True/Flase: Normalization on/off.
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
 
-    ANN_model_file_name = "ANN_trained.pkl"
+    ANN_model_file_name = "ANN_trained_laplacian_significant.pkl"
+    result_folder_path = "data"
     
     neural_net = Net1(FM_num, PC_num).to(device)
     neural_net.load_state_dict(torch.load(ANN_model_file_name))
@@ -479,10 +480,7 @@ def main():
     fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
     test_data = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
                                    transfer_data_mat["orig_config_var_name"][0], 
-                                   original_node_number, loads_num, 
-                                   os.path.join(transfer_data_mat["current_directory"][0], 
-                                                transfer_data_mat["inp_folder"][0], 
-                                                transfer_data_mat["results_folder_path_coor"][0])) # change the variable's name if necessary. 
+                                   original_node_number, loads_num, result_folder_path) # change the variable's name if necessary. 
 
     data_x, nDOF, non_zero_indices_list = matrixShrink(test_data, fix_indices_list) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean. 
