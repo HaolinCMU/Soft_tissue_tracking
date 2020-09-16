@@ -267,18 +267,20 @@ def zeroMean(data_matrix):
     return data_new, mean_vect
 
 
-def PCA(data_matrix, PC_num):
+def PCA(data_matrix, PC_num, training_ratio):
     """
-    Implement PCA on tumor's deformation data (Encoder). 
+    Implement PCA on tumor's deformation covariance matrix (Encoder). 
 
     Parameters:
     ----------
         data_matrix: 2D Array. 
             Size: nNodes*3 x SampleNum. 
-            Each DOF is a feature. Zero shifted. 
+            Each DOF is a feature. Mean-shifted.  
         PC_num: Int. 
             The number of picked PCs.
-    
+        training_ratio: float.
+            The ratio of training dataset.
+
     Returns:
     ----------
         eigVect_full: 2D Array. 
@@ -299,9 +301,9 @@ def PCA(data_matrix, PC_num):
     """
     
     # Compute covariance matrix & Eigendecompostion
-    cov_matrix = data_matrix @ np.transpose(data_matrix) # Size: nDOF * nDOF
+    training_index = int(np.ceil(data_matrix.shape[1] * training_ratio)) # Samples along with axis-1.
+    cov_matrix = data_matrix[:,0:training_index] @ np.transpose(data_matrix[:,0:training_index]) # Size: nDOF * nDOF
     eigVal_full, eigVect_full = np.linalg.eig(cov_matrix)
-#    eigVect_full = data_matrix @ eigVect_full # Compute the eigenvectors of all features
     
     # PCA
     eigVal, eigVect = np.zeros(shape=(PC_num, 1), dtype=complex), np.zeros(shape=(eigVect_full.shape[0], PC_num), dtype=complex)
@@ -313,7 +315,7 @@ def PCA(data_matrix, PC_num):
         eigVect[:,i] = eigVect_full[:,index] # Pick PC_num principal eigenvectors. Sorted. 
     
     # Compute weights of each sample on the picked basis (encoding). 
-    weights = np.transpose(eigVect) @ data_matrix # Size: PC_num * SampleNum
+    weights = np.transpose(eigVect) @ data_matrix # Size: PC_num * SampleNum, complex. 
     
     return eigVect_full, eigVal_full, eigVect, eigVal, weights
 
@@ -759,7 +761,7 @@ if __name__ == "__main__":
     orig_node_num = int(data_x.shape[0] / 3.0)
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
-    eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num) # PCA on deformation matrix. 
+    eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num, training_ratio) # PCA on training deformation matrix. 
     
 
     # Loop for picking optimal FMs. 
