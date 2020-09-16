@@ -113,7 +113,11 @@ Domains = 8
 Gpus = 0
 time_break = 5 # The break time to let Abaqus finish processing all files. Unit: s. 
 
-stage1_list, stage2_list = [], []
+string_list = ["CPU processors: {}".format(Cpus),
+               "Domains: {}".format(Domains),
+               "GPU processors: {}".format(Gpus),
+               "----------------------------------------------------------"]
+time_total = 0 # Float. The total time spent for all simulations. 
 
 for file_name in file_list:
     if file_name.split('.')[-1] != "inp": continue
@@ -194,6 +198,7 @@ for file_name in file_list:
     end_time_total = time.time()
     elapsed_time_run = end_time_job - start_time
     elapsed_time_total = end_time_total - start_time
+    time_total += elapsed_time_total
 
     if target_path_fil_temp == "": isFil_exist = "False"
     else: 
@@ -207,7 +212,14 @@ for file_name in file_list:
                     " | Status: " + status_string + " | Fil: " + isFil_exist + " | Run time: %.4f s" % (elapsed_time_run) + 
                     " | Total time: %.4f s" % (elapsed_time_total))
 
+    string_list.append(print_string_temp)
+
     print(print_string_temp)
 
     if target_path_odb_temp != "" and np.random.rand() <= 0.3: os.remove(target_path_odb_temp)
     else: continue
+
+string_list += ["Total time spent: {} hrs".format(time_total / 3600.0)]
+content = '\n'.join(string_list)
+
+with open("simulation.log", 'w') as f: f.write(content)
