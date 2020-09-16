@@ -67,14 +67,15 @@ class inputFileGenerator(object):
         self._isLaplacianSmoothingOn = True # Boolean. True: use laplacian smoothing. False: do not use laplacian smoothing.
         self._laplacian_variable_name = "laplacianMatrixI3" 
         self._massMatrix_variable_name = "massMatrixI3" 
-        self._laplacian_iter_num = 5
-        self._smoothing_rate = 1e-4
+        self._laplacian_iter_num = 20 # Default: 3. 
+        self._smoothing_rate = 0.1 # Default: 0.1 (Previous: 1e-4). 
 
         self.loads_num = 3 # For initial testing.
         self._load_sampling_style = "gaussian" # String. Indicating the type of random sampling for force components. "uniform" / "gaussian". 
         self._load_scale = (0.0, 10.0) # Absolute range of the force for uniform sampling. Case and BC specific. (min, max). Unit: N.
         self._gaussian_params = (10.0, 2.0) # Mean and deviation of the force for Gaussian sampling. Case and BC specific. (mean, deviation). Unit: N.
         self._load_params_tuple = None
+        self._initial_force_component_vector = [] # List of floats. Default: []. Example: [5., 5., 5.]. 
 
         self.autoIncrementNum = 5000 # Int. The maximum increment number of the AutoSolver. 
         self.initIncrem = 0.001 # Float. The initial length of the increment (for fixed-step, this is also the length per increm). 
@@ -137,7 +138,9 @@ class inputFileGenerator(object):
         self._fix_nset_name = "fix"
         self._fix_indices_list = fix_indices_list
         self._fix_nset = self.generateNset(self._fix_indices_list, self._fix_nset_name, self._instance_name) # Nset definition of fix BC. 
-        self._loads_posi_indices_list = self._generateLoadPositions(self.loads_num, self._fix_indices_list) # Generate load positions. Randomly. 
+        self._loads_posi_indices_list = self._generateLoadPositions(self.loads_num, self._fix_indices_list) # Generate load positions. Randomly. For fixed mode: style="fix", input_posi_indices_list=[415, 470, 107]. 
+        self._laplacian_initial_loads_posi = None # List. Containing the original position of concentrated forces.  
+        self._laplacian_force_field = None # 2D Array of floats. Size: nSurfI * 3. The force field on the outer surface. 
 
         self._surface_list = []
         self._coupling_list = [] 
@@ -490,7 +493,7 @@ class inputFileGenerator(object):
             return stress_strain_lines
 
     
-    def _generateLoadPositions(self, loads_num, fix_indices_list):
+    def _generateLoadPositions(self, loads_num, fix_indices_list, style="random", input_posi_indices_list=[]):
         """
         Randomly generate positions of the load. 
 
@@ -500,6 +503,16 @@ class inputFileGenerator(object):
                 Number of loads.
             fix_indices_list: List of ints. 
                 Indices of fixed nodes. 
+            style (optional): String. 
+                Indicate how to generate initial load positions. 
+                "random" / "fix":
+                    "random": Randomly generate load positions. 
+                    "fix": Use the user input of initial load position indices.
+                Default: "random". 
+            input_posi_indices_list (optional): List of ints. 
+                User input of initial load positions indices list. 
+                Indexed from 1. 
+                Default: []. 
 
         Returns:
         ----------
@@ -507,16 +520,21 @@ class inputFileGenerator(object):
                 Picked indices for load application positions. 
         """
 
-        loads_posi_indices_list = []
+        if style == "random":
+            loads_posi_indices_list = []
 
-        for i in range(loads_num):
-            while(True):
-                load_posi_index_temp = np.random.randint(1, self._surface_nodes_num+1) # Randomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
-                if load_posi_index_temp not in fix_indices_list: break # The randomly generated index cannot be one of the fixed nodes. 
-            
-            loads_posi_indices_list.append(load_posi_index_temp)
+            for i in range(loads_num):
+                while(True):
+                    load_posi_index_temp = np.random.randint(1, self._surface_nodes_num+1) # Randomly chosen a surface node to apply load F(x, y, z). Indexed from 1. 
+                    if load_posi_index_temp not in fix_indices_list: break # The randomly generated index cannot be one of the fixed nodes. 
+                
+                loads_posi_indices_list.append(load_posi_index_temp)
 
-        return loads_posi_indices_list
+            return loads_posi_indices_list
+        
+        elif style == "fix": return input_posi_indices_list
+
+        else: return self._generateLoadPositions(loads_num, fix_indices_list)
     
 
     def _generateLoadValues(self, output_dimension, load_scale, sampling_style="uniform"):
@@ -611,13 +629,22 @@ class inputFileGenerator(object):
             if self._isLaplacianSmoothingOn:
                 force_vector_temp = np.zeros(shape=(3*self._surface_nodes_num, 1))
 
-                for load_posi_index_temp in self._loads_posi_indices_list:
-                    force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = self._generateLoadValues((3,1), self._load_params_tuple, sampling_style=self._load_sampling_style)
+                self._laplacian_initial_loads_posi = copy.deepcopy(self._loads_posi_indices_list)
+                
+                if self._initial_force_component_vector == []:
+                    for load_posi_index_temp in self._loads_posi_indices_list:
+                        force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = self._generateLoadValues((3,1), self._load_params_tuple, 
+                                                                                                                        sampling_style=self._load_sampling_style)
+                else: 
+                    for load_posi_index_temp in self._loads_posi_indices_list:
+                        force_vector_temp[(load_posi_index_temp-1)*3:load_posi_index_temp*3,:] = np.array(self._initial_force_component_vector).astype(float).reshape(3,1)
                 
                 laplacian_matrix, mass_matrix = self.data_mat[self._laplacian_variable_name], self.data_mat[self._massMatrix_variable_name]
 
                 force_vector_new = self._laplacianSmoothing(force_vector_temp, laplacian_matrix, mass_matrix, iter_num=self._laplacian_iter_num, 
-                                                            smoothing_rate=self._smoothing_rate) # Size: (nSurfI x 3)*1. Fix force value: initial_BC_state="fix". 
+                                                            smoothing_rate=self._smoothing_rate) # Size: (nSurfI x 3)*1. Fix force value: initial_BC_state="fix" (not recommended). 
+
+                self._laplacian_force_field = force_vector_new.reshape(-1,3)
 
                 self._loads_posi_indices_list = copy.deepcopy([(list(force_vector_new).index(item)//3)+1 for item in list(force_vector_new) if item != 0]) # Indexed from 1.
                 self._loads_posi_indices_list = list(set(self._loads_posi_indices_list))
@@ -628,7 +655,10 @@ class inputFileGenerator(object):
                     self._loads_nset_name_list.append(load_nset_name_temp)
                     
                     self._load_nsets += self.generateNset([load_posi_index_temp], load_nset_name_temp, self._instance_name)
-                    self._load = self.generateLoadSetting(force_list=list(force_vector_new.reshape(-1,1)))
+                
+                self._load_nsets += self.generateNset(self._laplacian_initial_loads_posi, "Orig_loads_posi", self._instance_name)
+                
+                self._load = self.generateLoadSetting(force_list=list(force_vector_new.reshape(-1,1)))
             
             else:
                 for i, load_posi_index_temp in enumerate(self._loads_posi_indices_list):
@@ -768,7 +798,7 @@ class inputFileGenerator(object):
             mass_matrix: 2D Array of floats.
                 Diagonal matrix. 
                 Size: (self._surface_nodes_num x 3) * (self._surface_nodes_num x 3).
-            Iter_num (optional): Int. 
+            iter_num (optional): Int. 
                 The number of smoothing iterations.
                 Default: 3. 
             smoothing_rate (optional): float.
@@ -776,7 +806,7 @@ class inputFileGenerator(object):
                 Default: 1e-4. 
             initial_BC_state (optional): String. 
                 Indicating whether to "fix" or "decay" the original concentrated force value.
-                Default: "". Indicating smoothing including the original forces.   
+                Default: "". Indicating smoothing including the original forces. 
         """
 
         force_vector_new = copy.deepcopy(force_vector)
@@ -983,14 +1013,14 @@ def saveLog(file_name_list, elapsed_time_list, write_status, data_file_name,
 
     if load_sampling_type == "uniform":
         content += ["Load sampling type: {}".format(load_sampling_type),
-                    "Load sampling range (min, max): {}".format(load_param_tuple)]
+                    "Load sampling range (min, max): {} N".format(load_param_tuple)]
     elif load_sampling_type == "gaussian":
         content += ["Load sampling type: {}".format(load_sampling_type),
-                    "Load sampling parameters (mean, dev): {}".format(load_param_tuple)]
+                    "Load sampling parameters (mean, dev): {} N".format(load_param_tuple)]
     else:
         load_sampling_type = "uniform"
         content += ["Load sampling type: {}".format(load_sampling_type),
-                    "Load sampling range (min, max): {}".format(load_param_tuple)]
+                    "Load sampling range (min, max): {} N".format(load_param_tuple)]
 
     content += ["Coupling constraint status: {}".format(isCoupleOn_status),
                 "Laplacian smoothing status: {}".format(isLaplacianSmoothingOn_status)]
@@ -1022,7 +1052,7 @@ def saveLog(file_name_list, elapsed_time_list, write_status, data_file_name,
 def main():
     abaqus_default_directory = "C:/temp" # Default working directory of Abaqus. 
     inp_folder = "inp_files"
-    sample_nums = 2500
+    sample_nums = 2000
     data_file_path = "data_head_and_neck.mat"
     node_variable_name, elem_variable_name = "NodeI", "EleI"
     results_folder_path_stress, results_folder_path_coor = "stress", "coor"
@@ -1036,7 +1066,7 @@ def main():
     for i in range(sample_nums):
         if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
         
-        file_name_temp = "{}.inp".format(str(i+10001))
+        file_name_temp = "{}.inp".format(str(i+20001))
         write_path = os.path.join(inp_folder, file_name_temp)
 
         start_time = time.time()
@@ -1048,7 +1078,11 @@ def main():
         file_name_list.append(file_name_temp)
         elapsed_time_list.append(elapsed_time)
 
-        # print(inputFile_temp._loads_posi_indices_list)
+        # ============================ For force visualization only (sample_nums = 1) ============================ # 
+        # print(inputFile_temp._laplacian_initial_loads_posi)
+        # force_field = {"force_field": inputFile_temp._laplacian_force_field}
+        # scipy.io.savemat("force_field.mat", force_field)
+        # ======================================================================================================== # 
 
         print("Input_file: ", file_name_temp, "| Status:", write_status, "| Generation: Completed | Time: %.4f s" % (elapsed_time))
 
