@@ -1,9 +1,10 @@
 close all; clear all; clc
 
 %% Load data & initialize plot parameters
+FEM_mat_folder_name = 'FEM_pipeline';
 load ANN_benchmark_results.mat
-load data.mat
-load benchmark.mat
+load(strcat(FEM_mat_folder_name, '\data.mat'));
+load(strcat(FEM_mat_folder_name, '\benchmark.mat'));
 
 nFigRow = 3;
 nFigCol = 4;
