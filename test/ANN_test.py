@@ -471,7 +471,9 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     FM_num, PC_num = result_mat["FM_num"][0,0], result_mat["PC_num"][0,0]
-    eigVect, mean_vect_list = result_mat["eigVect"], list(result_mat["mean_vect"])
+    eigVal_full, eigVal = result_mat['eigVal_full'], result_mat['eigVal']
+    eigVect_full, eigVect = result_mat['eigVect_full'], result_mat['eigVect']
+    mean_vect_list = list(result_mat["mean_vect"])
     center_indices_list = result_mat["center_indices"]
     FM_indices = result_mat["FM_indices"]
 
@@ -563,7 +565,9 @@ def main():
              "dist_nodal_matrix": 1e3*dist_nodal_matrix, # Distance between each nodal pair. Unit: mm
              "mean_nodal_error": mean_nodal_error, # Mean nodal distance of each sample. Unit: mm
              "max_nodal_error": max_nodal_error, # Max nodal distance of each sample. Unit: mm
-             "eigVect": eigVect, "mean_vect": mean_vect, # The mean vector and principal eigenvector matrix of training dataset for data reconstruction. 
+             "eigVect_full": eigVect_full, "eigVal_full": eigVal_full, # Full eigenvector and eigenvalue matrices
+             "eigVect": eigVect, "eigVal": eigVal, # Principal eigenvector and eigenvalue matrices
+             "mean_vect": mean_vect, # The mean vector and principal eigenvector matrix of training dataset for data reconstruction. 
              "dist_nodal_matrix_testPCA": 1e3*dist_nodal_matrix_testPCA, # Distance between each nodal pair (pure PCA reconstruction). Unit: mm
              "mean_nodal_error_testPCA": 1e3*np.array(mean_error_list_testPCA).astype(float).reshape(-1,1), # Mean nodal distance of each sample (pure PCA reconstruction). Unit: mm
              "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1) # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
