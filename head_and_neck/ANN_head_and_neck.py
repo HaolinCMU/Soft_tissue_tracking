@@ -244,23 +244,34 @@ def matrixShrink(data_matrix, fix_indices_list=[]):
     return data_shrinked, nDOF, non_zero_indices_list
     
 
-def zeroMean(data_matrix):
+def zeroMean(data_matrix, training_ratio, mean_vect_input=[]):
     """
     Shift the origin of new basis coordinate system to mean point of the data. 
 
     Parameters:
     ----------
         data_matrix: 2D Array. 
-        Size: nFeatures x nSamples.
+            Size: nFeatures x nSamples.
+        training_ratio: float.
+            The ratio of training dataset. 
+        mean_vect_input (optional): 1D List of floats. 
+            The user input of mean vector of training dataset. 
+            Default: [].
 
     Returns:
     ----------
-        data_new: 2D Array with the same size as data_matrix. Mean-shifted data. 
-        mean_vect: 1D Array. 
+        data_new: 2D Array with the same size as data_matrix. 
+            Mean-shifted data. 
+        mean_vect: 1D Array of float. 
             The mean value of each feature. 
     """
     
-    mean_vect = np.mean(data_matrix, axis=1) # Compute mean along with sample's axis. 
+    if mean_vect_input == []:
+        training_index = int(np.ceil(data_matrix.shape[1] * training_ratio)) # Samples along with axis-1.
+        mean_vect = np.mean(data_matrix[:,0:training_index], axis=1) # Compute mean along with sample's axis. 
+    else:
+        mean_vect = np.array(mean_vect_input).astype(float).reshape(-1,)
+
     data_new = np.zeros(data_matrix.shape)
 
     for i in range(data_matrix.shape[1]):
@@ -796,12 +807,12 @@ def main():
     # Extract data from .mat file
     data_mat = scipy.io.loadmat(os.path.join(FEM_folder_path, "benchmark20mm1000samples.mat"))
     v_space, data_x, fix_dof_list = data_mat["NodeI"], data_mat["xI"], data_mat["idxFix3"] # change the variable's name if necessary. 
-    fix_node_list = [ind for ind in fix_dof_list if ind % 3 == 0] # Indices of fixed nodes. Indexed from 1. 
+    fix_node_list = [int(ind/3) for ind in fix_dof_list if ind % 3 == 0] # Indices of fixed nodes. Indexed from 1. 
 
     # Implement PCA
     orig_node_num = int(data_x.shape[0] / 3.0)
     data_x, nDOF, non_zero_indices_list = matrixShrink(data_x) # Remove zero rows of data_x.
-    data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean
+    data_x, mean_vect = zeroMean(data_x, training_ratio) # Shift(zero) the data to its mean
     eigVect_full, eigVal_full, eigVect, eigVal, data_y = PCA(data_x, PC_num, training_ratio) # PCA on training deformation matrix. 
     
     # Generate FM indices (Founded best initial indices: 96, 217, 496, 523, 564, 584, 1063)
@@ -927,6 +938,7 @@ def main():
              "test_deformation_label": test_data, # Label deformation results. 
              "test_deformation_reconstruct": test_reconstruct_matrix, # ANN reconstruction deformation results. 
              "test_PCA_reconstruct": test_PCA_reconstruct, # Reconstruction of pure PCA decomposition. 
+             "fix_node_list": fix_node_list, # List of fixed node indices. Indexed from 1. 
              "FM_indices": np.array(FM_indices).astype(int).reshape(-1,1) + 1, # FMs" indices. Add 1 to change to indexing system in Matlab. 
              "center_indices": np.array(center_indices_list).astype(int).reshape(-1,1) + 1, # Center indices generated from the k-center clustering. Add 1 to change to indexing system in Matlab. 
              "dist_nodal_matrix": 1e3*dist_nodal_matrix, # Distance between each nodal pair. Unit: mm
@@ -934,6 +946,7 @@ def main():
              "max_nodal_error": max_nodal_error, # Max nodal distance of each sample. Unit: mm
              "eigVect_full": eigVect_full, "eigVal_full": eigVal_full, # Full eigenvector and eigenvalue matrices
              "eigVect": eigVect, "eigVal": eigVal, # Principal eigenvector and eigenvalue matrices
+             "mean_vect": mean_vect, # The mean vector of training dataset for data reconstruction
              "dist_nodal_matrix_testPCA": 1e3*dist_nodal_matrix_testPCA, # Distance between each nodal pair (pure PCA reconstruction). Unit: mm
              "mean_nodal_error_testPCA": 1e3*np.array(mean_error_list_testPCA).astype(float).reshape(-1,1), # Mean nodal distance of each sample (pure PCA reconstruction). Unit: mm
              "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1) # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
