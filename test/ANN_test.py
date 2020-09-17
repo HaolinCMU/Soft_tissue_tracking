@@ -141,7 +141,7 @@ def matrixShrink(data_matrix, fix_indices_list=[]):
         data_matrix: 2D Array. 
             Size: nDOF x SampleNum. 
             The full matrix of deformation data.
-        dix_indices_list (optional): List of ints.
+        fix_indices_list (optional): List of ints.
             The list of fixed indices. 
             Indexed from 1. 
             For nonlinear dataset, this list should be specified. 
@@ -183,29 +183,40 @@ def matrixShrink(data_matrix, fix_indices_list=[]):
                 non_zero_indices_list.append(i*3)
                 non_zero_indices_list.append(i*3+1)
                 non_zero_indices_list.append(i*3+2)
-        
+
         data_shrinked = np.delete(data_matrix, zero_indices_list, axis=0)
     
     return data_shrinked, nDOF, non_zero_indices_list
     
 
-def zeroMean(data_matrix):
+def zeroMean(data_matrix, training_ratio, mean_vect_input=[]):
     """
     Shift the origin of new basis coordinate system to mean point of the data. 
 
     Parameters:
     ----------
         data_matrix: 2D Array. 
-        Size: nFeatures x nSamples.
+            Size: nFeatures x nSamples.
+        training_ratio: float.
+            The ratio of training dataset. 
+        mean_vect_input (optional): 1D List of floats. 
+            The user input of mean vector of training dataset. 
+            Default: [].
 
     Returns:
     ----------
-        data_new: 2D Array with the same size as data_matrix. Mean-shifted data. 
-        mean_vect: 1D Array. 
+        data_new: 2D Array with the same size as data_matrix. 
+            Mean-shifted data. 
+        mean_vect: 1D Array of float. 
             The mean value of each feature. 
     """
     
-    mean_vect = np.mean(data_matrix, axis=1) # Compute mean along with sample's axis. 
+    if mean_vect_input == []:
+        training_index = int(np.ceil(data_matrix.shape[1] * training_ratio)) # Samples along with axis-1.
+        mean_vect = np.mean(data_matrix[:,0:training_index], axis=1) # Compute mean along with sample's axis. 
+    else:
+        mean_vect = np.array(mean_vect_input).astype(float).reshape(-1,)
+
     data_new = np.zeros(data_matrix.shape)
 
     for i in range(data_matrix.shape[1]):
@@ -399,14 +410,14 @@ def testNet(test_dataloader, neural_net, device):
     return pred_y_List, test_y_List, lossList_test
 
 
-def deformationExtraction(orig_data_file_name, variable_name, original_node_number, loads_num, results_folder_path):
+def deformationExtraction(data_mat, variable_name, original_node_number, loads_num, results_folder_path):
     """
     Extract deformation information from original configuration (.mat file) and deformed configuration (.csv file). 
 
     Parameters:
     ----------
-        orig_data_file_name: String. 
-            The path of the .mat file containing the node list of original configuration. 
+        data_mat: mat file content. 
+            The .mat file containing the node list of original configuration. 
         variable_name: String. 
             The variable name of the node list. 
         original_node_number: Int. 
@@ -423,8 +434,7 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
             The matrix of deformation of all nodes. 
     """
 
-    data_mat_temp = scipy.io.loadmat(orig_data_file_name)
-    orig_config_temp = data_mat_temp[variable_name] # Float matrix. Extract the node-coord data of the original configuration. 
+    orig_config_temp = data_mat[variable_name] # Float matrix. Extract the node-coord data of the original configuration. 
     orig_config_temp = orig_config_temp.astype(float).reshape(-1,1) # Size: node_num*3 x 1. Concatenated as xyzxyz...
 
     deformed_config_file_list = os.listdir(results_folder_path)
@@ -454,14 +464,14 @@ def main():
     Run "resultPlot.py" afterwards.
     """
 
-    result_mat_file_name = "ANN_benchmark_results_laplacian_significant.mat"
-    transfer_mat_file_name = "training_parameters_transfer.mat"
+    result_mat_file_name = "ANN_benchmark_results.mat"
+    mesh_mat_file_name = "data_head_and_neck.mat"
     result_mat = scipy.io.loadmat(result_mat_file_name)
-    transfer_data_mat = scipy.io.loadmat(transfer_mat_file_name)
+    mesh_mat = scipy.io.loadmat(mesh_mat_file_name)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     FM_num, PC_num = result_mat["FM_num"][0,0], result_mat["PC_num"][0,0]
-    eigVect = result_mat["eigVect"]
+    eigVect, mean_vect_list = result_mat["eigVect"], list(result_mat["mean_vect"])
     center_indices_list = result_mat["center_indices"]
     FM_indices = result_mat["FM_indices"]
 
@@ -469,21 +479,20 @@ def main():
     isNormOn = False # True/Flase: Normalization on/off.
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
 
-    ANN_model_file_name = "ANN_trained_laplacian_significant.pkl"
+    ANN_model_file_name = "ANN_trained.pkl"
     result_folder_path = "data"
+
+    orig_config_var_name, fix_node_list_name = "NodeI", "fix_node_list"
     
     neural_net = Net1(FM_num, PC_num).to(device)
     neural_net.load_state_dict(torch.load(ANN_model_file_name))
 
-    original_node_number = transfer_data_mat["original_node_number"][0][0]
-    loads_num = transfer_data_mat["couple_region_num"][0][0]
-    fix_indices_list = list(transfer_data_mat["fix_indices_list"][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.  
-    test_data = deformationExtraction(transfer_data_mat["orig_data_file_name"][0], 
-                                   transfer_data_mat["orig_config_var_name"][0], 
-                                   original_node_number, loads_num, result_folder_path) # change the variable's name if necessary. 
+    original_node_number, loads_num = mesh_mat[orig_config_var_name].shape[0], 0 # loads_num: when using coupling constraints, a number of assembly nodes should be specifiled. 
+    fix_indices_list = list(result_mat[fix_node_list_name][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.
+    test_data = deformationExtraction(mesh_mat, orig_config_var_name, original_node_number, loads_num, result_folder_path) # change the variable's name if necessary. 
 
     data_x, nDOF, non_zero_indices_list = matrixShrink(test_data, fix_indices_list) # Remove zero rows of data_x.
-    data_x, mean_vect = zeroMean(data_x) # Shift(zero) the data to its mean. 
+    data_x, mean_vect = zeroMean(data_x, training_ratio=1.0, mean_vect_input=mean_vect_list) # Shift(zero) the data to its mean (obtained from previous result). 
     data_y = np.transpose(eigVect) @ data_x
     
     test_dataloader, norm_params = dataProcessing(data_x, data_y, batch_size, FM_indices, bool_norm=isNormOn)
@@ -548,12 +557,13 @@ def main():
              "test_deformation_label": test_data, # Label deformation results. 
              "test_deformation_reconstruct": test_reconstruct_matrix, # ANN reconstruction deformation results. 
              "test_PCA_reconstruct": test_PCA_reconstruct, # Reconstruction of pure PCA decomposition. 
+             "fix_node_list": fix_indices_list, # List of fixed node indices. Indexed from 1. 
              "FM_indices": np.array(FM_indices).astype(int).reshape(-1,1) + 1, # FMs" indices. Add 1 to change to indexing system in Matlab. 
              "center_indices": np.array(center_indices_list).astype(int).reshape(-1,1) + 1, # Center indices generated from the k-center clustering. Add 1 to change to indexing system in Matlab. 
              "dist_nodal_matrix": 1e3*dist_nodal_matrix, # Distance between each nodal pair. Unit: mm
              "mean_nodal_error": mean_nodal_error, # Mean nodal distance of each sample. Unit: mm
              "max_nodal_error": max_nodal_error, # Max nodal distance of each sample. Unit: mm
-             "eigVect": eigVect, # Principal eigenvector matrix
+             "eigVect": eigVect, "mean_vect": mean_vect, # The mean vector and principal eigenvector matrix of training dataset for data reconstruction. 
              "dist_nodal_matrix_testPCA": 1e3*dist_nodal_matrix_testPCA, # Distance between each nodal pair (pure PCA reconstruction). Unit: mm
              "mean_nodal_error_testPCA": 1e3*np.array(mean_error_list_testPCA).astype(float).reshape(-1,1), # Mean nodal distance of each sample (pure PCA reconstruction). Unit: mm
              "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1) # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
