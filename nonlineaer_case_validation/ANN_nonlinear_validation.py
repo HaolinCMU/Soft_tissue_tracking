@@ -204,7 +204,7 @@ def matrixShrink(data_matrix, fix_indices_list=[]):
         data_matrix: 2D Array. 
             Size: nDOF x SampleNum. 
             The full matrix of deformation data.
-        dix_indices_list (optional): List of ints.
+        fix_indices_list (optional): List of ints.
             The list of fixed indices. 
             Indexed from 1. 
             For nonlinear dataset, this list should be specified. 
@@ -290,7 +290,7 @@ def zeroMean(data_matrix, training_ratio, mean_vect_input=[]):
 
 def PCA(data_matrix, PC_num, training_ratio):
     """
-    Implement PCA on tumor's deformation covariance matrix (Encoder). 
+    Implement PCA on tumor's deformation covariance matrix (Encoder) - training set. 
 
     Parameters:
     ----------

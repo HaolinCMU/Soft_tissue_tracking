@@ -23,7 +23,7 @@ class inputFileGenerator(object):
         Pressure: Pa
     """
 
-    def __init__(self, data_file_name, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name):
+    def __init__(self, data_file_name, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name, user_prescribed_force_field=[]):
         """
         Initialize parameters. 
 
@@ -42,6 +42,10 @@ class inputFileGenerator(object):
             The variable name of the nodes matrix in the data file. 
         elem_variable_name: String. 
             The variable name of the elements matrix in the data file. 
+        user_prescribed_force_field (optional): List of floats.
+            The user-prescribed vector of laplacian force field. 
+            Size: nSurfI x 3. 
+            Default: []. 
         """
         
         # Data & Variables. 
@@ -141,6 +145,7 @@ class inputFileGenerator(object):
         self._loads_posi_indices_list = self._generateLoadPositions(self.loads_num, self._fix_indices_list) # Generate load positions. Randomly. For fixed mode: style="fix", input_posi_indices_list=[415, 470, 107]. 
         self._laplacian_initial_loads_posi = None # List. Containing the original position of concentrated forces.  
         self._laplacian_force_field = None # 2D Array of floats. Size: nSurfI * 3. The force field on the outer surface. 
+        self._user_prescribed_force_field = user_prescribed_force_field # List of floats. Size: nSurfI * 3. The prescribed force field on the outer surface. Default: []. 
 
         self._surface_list = []
         self._coupling_list = [] 
@@ -642,7 +647,7 @@ class inputFileGenerator(object):
                 laplacian_matrix, mass_matrix = self.data_mat[self._laplacian_variable_name], self.data_mat[self._massMatrix_variable_name]
 
                 force_vector_new = self._laplacianSmoothing(force_vector_temp, laplacian_matrix, mass_matrix, iter_num=self._laplacian_iter_num, 
-                                                            smoothing_rate=self._smoothing_rate) # Size: (nSurfI x 3)*1. Fix force value: initial_BC_state="fix" (not recommended). 
+                                                            smoothing_rate=self._smoothing_rate, laplacian_force_field=self._user_prescribed_force_field) # Size: (nSurfI x 3)*1. Fix force value: initial_BC_state="fix" (not recommended). 
 
                 self._laplacian_force_field = force_vector_new.reshape(-1,3)
 
@@ -782,7 +787,7 @@ class inputFileGenerator(object):
         return load_list
     
     
-    def _laplacianSmoothing(self, force_vector, laplacian_matrix, mass_matrix, iter_num=3, smoothing_rate=1e-4, initial_BC_state=""):
+    def _laplacianSmoothing(self, force_vector, laplacian_matrix, mass_matrix, iter_num=3, smoothing_rate=1e-4, initial_BC_state="", laplacian_force_field=[]):
         """
         Implement laplacian smoothing based on pre-calculated Laplacian matrix.
         Formulation: Forward Euler.
@@ -807,17 +812,30 @@ class inputFileGenerator(object):
             initial_BC_state (optional): String. 
                 Indicating whether to "fix" or "decay" the original concentrated force value.
                 Default: "". Indicating smoothing including the original forces. 
+            laplacian_force_field (optional): List of floats.
+                The user-prescribed vector of laplacian force field. 
+                Size: self._surface_nodes_num x 3. 
+                Default: []. 
+
+        Returns:
+        ----------
+            force_vector_new: 1D Array of floats. 
+                The laplacian-smoothed force vector.
+                Size: (self._surface_nodes_num x 3) * 1. 
         """
 
-        force_vector_new = copy.deepcopy(force_vector)
-        for i in range(iter_num): 
-            force_vector_new += smoothing_rate * (laplacian_matrix @ force_vector_new) # Without mass matrix. 
-            # force_vector_new += smoothing_rate * (mass_matrix @ laplacian_matrix @ force_vector_new) # With mass matrix (NOT recommended). 
+        if laplacian_force_field == []:
+            force_vector_new = copy.deepcopy(force_vector)
+            for i in range(iter_num): 
+                force_vector_new += smoothing_rate * (laplacian_matrix @ force_vector_new) # Without mass matrix. 
+                # force_vector_new += smoothing_rate * (mass_matrix @ laplacian_matrix @ force_vector_new) # With mass matrix (NOT recommended). 
 
-            if initial_BC_state == "fix":
-                for j, value in enumerate(force_vector):
-                    if value != 0:
-                        force_vector_new[j] = value
+                if initial_BC_state == "fix":
+                    for j, value in enumerate(force_vector):
+                        if value != 0:
+                            force_vector_new[j] = value
+
+        else: force_vector_new = np.array(laplacian_force_field).astype(float).reshape(len(laplacian_force_field),1)
 
         return force_vector_new
 
@@ -1060,23 +1078,56 @@ def main():
     fix_indices_list = [761, 1000, 1158] # Specify the node to fix. At least 3. Indexed from 1. 
     write_status = "Normal" # String. "Normal" / "Fast". "Normal": generate all definitions; "Fast": generate nodes and elements definition only. 
 
+    force_field_mat_name = "force_field_data.mat"
+    force_interpolation_folder = "inp_interpolation"
+    isPrescribedForceOn = False # Boolean indicator. True: use prescribed force field; False: no specified force field. Default: False. 
+
+    if isPrescribedForceOn:
+        """
+        The pipeline of generating interpolated force fields:
+            1. Run "nonlinearCasesCreation.py" with 'isPrescribedForceOn = False' firstly. 
+            2. Run "forceInterpolation.py" in the same directory. 
+            3. Set 'isPrescribedForceOn = True', then run "nonlinearCasesCreation.py" again. 
+            4. Get input files with interpolated force field applied in the folder 'force_interpolation_folder'. 
+        """
+
+        force_fields = scipy.io.loadmat(force_field_mat_name)["force_field_prescribed"] # Size: nSurfI*3 x sampleNum. Concatenated as xyzxyz...
+        sample_nums = force_fields.shape[1]
+
     # Generate input file for Abaqus. 
-    file_name_list, elapsed_time_list = [], []
+    file_name_list, elapsed_time_list, force_field_matrix = [], [], None
 
     for i in range(sample_nums):
-        if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
-        
-        file_name_temp = "{}.inp".format(str(i+20001))
-        write_path = os.path.join(inp_folder, file_name_temp)
-
         start_time = time.time()
-        inputFile_temp = inputFileGenerator(data_file_path, write_path, material_type, fix_indices_list, node_variable_name, elem_variable_name)
+
+        if isPrescribedForceOn:
+            if not os.path.isdir(force_interpolation_folder): os.mkdir(force_interpolation_folder)
+            file_name_temp = "{}_interpolated.inp".format(str(i+20001))
+            write_path = os.path.join(force_interpolation_folder, file_name_temp)
+
+            force_field_prescribed_list = list(force_fields[:,i])
+
+            inputFile_temp = inputFileGenerator(data_file_path, write_path, material_type, 
+                                                fix_indices_list, node_variable_name, elem_variable_name, 
+                                                user_prescribed_force_field=force_field_prescribed_list)
+
+        else: 
+            if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
+            file_name_temp = "{}.inp".format(str(i+20001))
+            write_path = os.path.join(inp_folder, file_name_temp)
+
+            inputFile_temp = inputFileGenerator(data_file_path, write_path, material_type, 
+                                                fix_indices_list, node_variable_name, elem_variable_name)
+
         inputFile_temp.writeFile(write_status)
         end_time = time.time()
         elapsed_time = end_time - start_time
 
         file_name_list.append(file_name_temp)
         elapsed_time_list.append(elapsed_time)
+
+        if i == 0: force_field_matrix = inputFile_temp._laplacian_force_field.reshape(-1,1)
+        else: force_field_matrix = np.hstack((force_field_matrix, inputFile_temp._laplacian_force_field.reshape(-1,1)))
 
         # ============================ For force visualization only (sample_nums = 1) ============================ # 
         # print(inputFile_temp._laplacian_initial_loads_posi)
@@ -1094,6 +1145,8 @@ def main():
             laplacian_iter_num=inputFile_temp._laplacian_iter_num, laplacian_smoothing_rate=inputFile_temp._smoothing_rate, 
             write_path="nonlinear_case_generation.log")
     
+    weight_matrix = (2.0 * np.random.rand(20, 3*sample_nums) - 1.0) * abs(inputFile_temp._load_scale[1] - inputFile_temp._load_scale[0]) * 0.5
+
     mdict = {"fix_indices_list": fix_indices_list,
              "orig_data_file_name": data_file_path,
              "orig_config_var_name": node_variable_name,
@@ -1102,7 +1155,9 @@ def main():
              "results_folder_path_stress": results_folder_path_stress,
              "results_folder_path_coor": results_folder_path_coor,
              "original_node_number": inputFile_temp._orig_node_num,
-             "couple_region_num": inputFile_temp._couple_region_num
+             "couple_region_num": inputFile_temp._couple_region_num,
+             "force_field_matrix": force_field_matrix, # The force field matrix of all generated samples. Size: nSurfI*3 x sampleNum_total. 
+             "weight_matrix": weight_matrix # The randomly generated matrix for force fields' reconstruction. Size: eigen_num x (3*sample_num). 
             }
 
     scipy.io.savemat("training_parameters_transfer.mat", mdict)
