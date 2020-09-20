@@ -213,13 +213,12 @@ for file_name in file_list:
                     " | Total time: %.4f s" % (elapsed_time_total))
 
     string_list.append(print_string_temp)
+    content = '\n'.join(string_list)
+    with open("simulation.log", 'w') as f: f.write(content)
 
-    print(print_string_temp)
-
-    if target_path_odb_temp != "" and np.random.rand() <= 0.3: os.remove(target_path_odb_temp)
+    if target_path_odb_temp != "" and np.random.rand() <= 0.7: os.remove(target_path_odb_temp)
     else: continue
 
 string_list += ["Total time spent: {} hrs".format(time_total / 3600.0)]
 content = '\n'.join(string_list)
-
 with open("simulation.log", 'w') as f: f.write(content)
