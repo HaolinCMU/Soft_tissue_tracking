@@ -3,10 +3,11 @@ close all; clear all; clc
 %% set parpool %%
 poolobj = parpool(4);
 
-
 %% Initialize paths and create folders %%
 recordKeys_in = [11, 107, 8];
-file_path = "C:\Users\13426\Desktop\soft_tissue_tracking\code\ANN\nonlinear\inp_files";
+directory = "C:\Users\13426\Desktop\soft_tissue_tracking\code\ANN\nonlinear";
+load(strcat(directory, "\training_parameters_transfer.mat"))
+file_path = strcat(directory, "\", inp_folder);
 abqDir_in = strcat(file_path, "\fil");
 sub_dir = fullfile(abqDir_in, '*.fil');
 dat = dir(sub_dir);
