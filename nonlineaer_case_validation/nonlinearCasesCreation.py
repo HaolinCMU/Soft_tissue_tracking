@@ -1145,12 +1145,12 @@ def main():
             laplacian_iter_num=inputFile_temp._laplacian_iter_num, laplacian_smoothing_rate=inputFile_temp._smoothing_rate, 
             write_path="nonlinear_case_generation.log")
     
-    weight_matrix = (2.0 * np.random.rand(20, 3*sample_nums) - 1.0) * abs(inputFile_temp._load_scale[1] - inputFile_temp._load_scale[0]) * 0.5
+    weight_matrix = (2.0 * np.random.rand(20, 3*sample_nums) - 1.0) * abs(inputFile_temp._load_scale[1] - inputFile_temp._load_scale[0]) * 0.5 # Distinct random force field for each laplacian-force-field.  
 
     mdict = {"fix_indices_list": fix_indices_list,
              "orig_data_file_name": data_file_path,
              "orig_config_var_name": node_variable_name,
-             "inp_folder": inp_folder, 
+             "inp_folder": inp_folder if not isPrescribedForceOn else force_interpolation_folder, 
              "current_directory": os.getcwd(),
              "results_folder_path_stress": results_folder_path_stress,
              "results_folder_path_coor": results_folder_path_coor,

@@ -99,6 +99,13 @@ def generateForceFields(laplacian_matrix, sample_num, weight, eigen_num=20, scal
 
 def main():
     """
+    Implement force interpolation and save interpolated force field matrix to .mat file. 
+
+    Pipeline:
+        1. Run "nonlinearCasesCreation.py" with 'isPrescribedForceOn = False' firstly. 
+        2. Run "forceInterpolation.py" in the same directory. 
+        3. Set 'isPrescribedForceOn = True', then run "nonlinearCasesCreation.py" again. 
+        4. Get input files with interpolated force field applied in the folder 'force_interpolation_folder'. 
     """
 
     # Result from nonlinear dataset (force field).
