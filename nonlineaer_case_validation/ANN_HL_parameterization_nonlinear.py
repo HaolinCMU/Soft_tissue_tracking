@@ -986,7 +986,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 20
     learning_rate = 0.001
-    num_epochs = 10000 # Default: 1500. 
+    num_epochs = 10000 # Default: 4000. 
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
@@ -1001,7 +1001,7 @@ def main():
     
     # Parameterization related parameters. 
     # Define ANN hidden layer combinations. 
-    neuron_num_options_list = [32, 64, 128] # List of int. List all possible neuron numbers for a single hidden layer. 
+    neuron_num_options_list = [32, 64, 128, 256] # List of int. List all possible neuron numbers for a single hidden layer. 
     layer_num_range = (2, 3) # Tuple of int. (minimum_layer_num, maximum_layer_num). Indicate the range of layer numbers, within which all possible combinations will be tested. Closed tuple. 
     abandoned_combinations = [] # 2D list of int. Specify the abandoned combinations.
     additional_combinations = [] # 2D list of int. Specify the additional combinations.

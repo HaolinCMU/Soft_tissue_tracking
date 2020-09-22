@@ -1078,21 +1078,29 @@ def main():
     fix_indices_list = [761, 1000, 1158] # Specify the node to fix. At least 3. Indexed from 1. 
     write_status = "Normal" # String. "Normal" / "Fast". "Normal": generate all definitions; "Fast": generate nodes and elements definition only. 
 
+    # ================================== Force interpolation related variables ================================== #
     force_field_mat_name = "force_field_data.mat"
     force_interpolation_folder = "inp_interpolation"
-    isPrescribedForceOn = False # Boolean indicator. True: use prescribed force field; False: no specified force field. Default: False. 
+    isPrescribedForceOn = True # Boolean indicator. True: use prescribed force field; False: no specified force field. Default: False. 
+    force_type = "interpolated" # String. The type of prescribed force field. "interpolated": interpolated force fields; "random": weighted-summed force fields. 
+    eigen_num_force, force_scalar = 20, 1.0 # Float. The scalar of force fields controlling the force magnitude -> deformation magnitude of the tumor in nonlinear solver. Unit: N. 
+    # =========================================================================================================== #
 
     if isPrescribedForceOn:
         """
         The pipeline of generating interpolated force fields:
             1. Run "nonlinearCasesCreation.py" with 'isPrescribedForceOn = False' firstly. 
             2. Run "forceInterpolation.py" in the same directory. 
-            3. Set 'isPrescribedForceOn = True', then run "nonlinearCasesCreation.py" again. 
-            4. Get input files with interpolated force field applied in the folder 'force_interpolation_folder'. 
+            3. Set 'isPrescribedForceOn = True', set 'force_type = "interpolated", then run "nonlinearCasesCreation.py" again. 
+                Get input files with "*_interpolated.inp" in the folder 'force_interpolation_folder'. 
+            4. Set 'isPrescribedForceOn = True', set 'force_type = "random", then run "nonlinearCasesCreation.py" again. 
+                Get input files with "*_random.inp" in the folder 'force_interpolation_folder'. 
         """
 
-        force_fields = scipy.io.loadmat(force_field_mat_name)["force_field_prescribed"] # Size: nSurfI*3 x sampleNum. Concatenated as xyzxyz...
+        force_fields = (scipy.io.loadmat(force_field_mat_name)["force_field_interpolated"] if force_type == "interpolated" else 
+                        scipy.io.loadmat(force_field_mat_name)["force_field_random"]) # Size: nSurfI*3 x sampleNum. Concatenated as xyzxyz...
         sample_nums = force_fields.shape[1]
+
 
     # Generate input file for Abaqus. 
     file_name_list, elapsed_time_list, force_field_matrix = [], [], None
@@ -1102,7 +1110,9 @@ def main():
 
         if isPrescribedForceOn:
             if not os.path.isdir(force_interpolation_folder): os.mkdir(force_interpolation_folder)
-            file_name_temp = "{}_interpolated.inp".format(str(i+20001))
+
+            file_name_temp = ("{}_interpolated.inp".format(str(i+20001)) if force_type == "interpolated" else
+                              "{}_random.inp".format(str(i+20001)))
             write_path = os.path.join(force_interpolation_folder, file_name_temp)
 
             force_field_prescribed_list = list(force_fields[:,i])
@@ -1113,6 +1123,7 @@ def main():
 
         else: 
             if not os.path.isdir(inp_folder): os.mkdir(inp_folder)
+
             file_name_temp = "{}.inp".format(str(i+20001))
             write_path = os.path.join(inp_folder, file_name_temp)
 
@@ -1143,21 +1154,24 @@ def main():
             inputFile_temp._isCoupleOn, inputFile_temp._isLaplacianSmoothingOn, 
             coupling_type=inputFile_temp._coupling_type, coupling_neighbor_layer_num=inputFile_temp._coupling_neighbor_layers, 
             laplacian_iter_num=inputFile_temp._laplacian_iter_num, laplacian_smoothing_rate=inputFile_temp._smoothing_rate, 
-            write_path="nonlinear_case_generation.log")
-    
-    weight_matrix = (2.0 * np.random.rand(20, 3*sample_nums) - 1.0) * abs(inputFile_temp._load_scale[1] - inputFile_temp._load_scale[0]) * 0.5 # Distinct random force field for each laplacian-force-field.  
+            write_path="nonlinear_case_generation.log")  
+
+    if not isPrescribedForceOn: weight_matrix = (2.0 * np.random.rand(20, 3*sample_nums) - 1.0) # Distinct random weights corresponding to each laplacian-force-field.
+    else: weight_matrix = scipy.io.loadmat(force_field_mat_name)["weight_matrix"] # Distinct random force field for each laplacian-force-field.
 
     mdict = {"fix_indices_list": fix_indices_list,
              "orig_data_file_name": data_file_path,
              "orig_config_var_name": node_variable_name,
-             "inp_folder": inp_folder if not isPrescribedForceOn else force_interpolation_folder, 
+             "inp_folder": inp_folder if not isPrescribedForceOn else force_interpolation_folder, # The folder containing input files. 
              "current_directory": os.getcwd(),
              "results_folder_path_stress": results_folder_path_stress,
              "results_folder_path_coor": results_folder_path_coor,
              "original_node_number": inputFile_temp._orig_node_num,
              "couple_region_num": inputFile_temp._couple_region_num,
              "force_field_matrix": force_field_matrix, # The force field matrix of all generated samples. Size: nSurfI*3 x sampleNum_total. 
-             "weight_matrix": weight_matrix # The randomly generated matrix for force fields' reconstruction. Size: eigen_num x (3*sample_num). 
+             "weight_matrix": weight_matrix, "force_scalar_coeff": force_scalar, # The randomly generated matrix for force fields' reconstruction. Size: eigen_num x (3*sample_num). 
+             "eigen_number_force": eigen_num_force, # Int. The eigenmode number of force field reconstruction. (Used only in force field interpolation)
+             "alpha_indexing_vector": np.zeros(shape=(sample_nums, 1)) if not isPrescribedForceOn else scipy.io.loadmat(force_field_mat_name)["alpha_indexing_vector"]
             }
 
     scipy.io.savemat("training_parameters_transfer.mat", mdict)

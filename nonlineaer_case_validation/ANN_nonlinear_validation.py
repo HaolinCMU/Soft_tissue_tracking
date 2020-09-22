@@ -50,7 +50,12 @@ class Net1(nn.Module):
             nn.ReLU(),
             # nn.Dropout(0.5)
         )
-        self.out_layer = nn.Linear(64, self.PC_num)
+        # self.hidden_3 = nn.Sequential(
+        #     nn.Linear(64, 32),
+        #     nn.ReLU(),
+        #     # nn.Dropout(0.5)
+        # )
+        self.out_layer = nn.Linear(32, self.PC_num)
         
         
     def forward(self, x):
@@ -70,6 +75,7 @@ class Net1(nn.Module):
         
         f1 = self.hidden_1(x)
         f2 = self.hidden_2(f1)
+        # f3 = self.hidden_3(f2)
         output = self.out_layer(f2)
         return output
 
@@ -836,7 +842,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 20
     learning_rate = 0.001
-    num_epochs = 8000 # Default: 4000. 
+    num_epochs = 10000 # Default: TBD. Previous default: 4000.  
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5

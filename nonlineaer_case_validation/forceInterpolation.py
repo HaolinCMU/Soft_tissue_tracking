@@ -38,14 +38,19 @@ def forceFieldInterpolation(force_field_1, force_field_2, alpha):
         force_field_new: 2D Array of floats. 
             The newly interpolated force field. 
             Size: nSurfI*3 x sampleNum.
+        alpha_indexing_vector: 1D Array of floats. 
+            Indicating the alpha value the force field corresponds to. 
+            Size: sampleNum x 1. 
     """
 
-    force_field_new = np.zeros(force_field_1.shape)
+    sample_num = force_field_1.shape[1]
+    force_field_new, alpha_indexing_vector = np.zeros(force_field_1.shape), np.zeros(shape=(sample_num, 1))
 
-    for i in range(force_field_1.shape[1]):
+    for i in range(sample_num):
         force_field_new[:,i] = force_field_1[:,i] * alpha[i%len(alpha)] + force_field_2[:,i] * (1.0 - alpha[i%len(alpha)])
+        alpha_indexing_vector[i,0] = alpha[i%len(alpha)] # The weight(portion) of Laplacian force field. 
 
-    return force_field_new
+    return force_field_new, alpha_indexing_vector
 
 
 def generateForceFields(laplacian_matrix, sample_num, weight, eigen_num=20, scalar=10.0):
@@ -89,7 +94,7 @@ def generateForceFields(laplacian_matrix, sample_num, weight, eigen_num=20, scal
         eigVect[:,i] = eigVect_full[:,index] # Pick PC_num principal eigenvectors. Sorted. 
 
     # weight = (2.0 * np.random.rand(eigen_num, 3*sample_num) - 1.0) * scalar
-    raw_random_matrix = np.real(eigVect @ weight) # Axis 1: concatenated as xyzxyz...; Size: nSurfI x (sample_num*3). 
+    raw_random_matrix = np.real(eigVect @ weight) * scalar # Axis 1: concatenated as xyzxyz...; Size: nSurfI x (sample_num*3). 
     force_field_matrix = np.zeros(shape=(laplacian_matrix.shape[0]*3, sample_num))
 
     for i in range(sample_num): force_field_matrix[:,i] = raw_random_matrix[:,3*i:3*(i+1)].reshape(-1,)
@@ -102,30 +107,41 @@ def main():
     Implement force interpolation and save interpolated force field matrix to .mat file. 
 
     Pipeline:
+    ----------
         1. Run "nonlinearCasesCreation.py" with 'isPrescribedForceOn = False' firstly. 
         2. Run "forceInterpolation.py" in the same directory. 
-        3. Set 'isPrescribedForceOn = True', then run "nonlinearCasesCreation.py" again. 
-        4. Get input files with interpolated force field applied in the folder 'force_interpolation_folder'. 
+        3. Set 'isPrescribedForceOn = True', set 'force_type = "interpolated", then run "nonlinearCasesCreation.py" again. 
+            Get input files with "*_interpolated.inp" in the folder 'force_interpolation_folder'. 
+        4. Set 'isPrescribedForceOn = True', set 'force_type = "random", then run "nonlinearCasesCreation.py" again. 
+            Get input files with "*_random.inp" in the folder 'force_interpolation_folder'. 
     """
 
     # Result from nonlinear dataset (force field).
     force_file_name = "training_parameters_transfer.mat"
-    force_field_matrix_1 = scipy.io.loadmat(force_file_name)["force_field_matrix"] # Size: nSurfI*3 x sampleNum. 
+    force_field_matrix_1 = scipy.io.loadmat(force_file_name)["force_field_matrix"] # Laplacian-smoothed force field. Size: nSurfI*3 x sampleNum. 
     sample_num = force_field_matrix_1.shape[1] # Number of samples/force fields. 
 
     # Result from linear dataset (laplacian).
     laplacian_file_name = "data_head_and_neck.mat"
     laplacian_matrix = scipy.io.loadmat(laplacian_file_name)["laplacianMatrixI"] # Size: nSurfI x nSurfI. 
-    eigenNum, force_scalar = 20, 10.0 # Unit of force field scalar: N. 
+    eigenNum, force_scalar = scipy.io.loadmat(force_file_name)["eigen_number_force"][0,0], scipy.io.loadmat(force_file_name)["force_scalar_coeff"][0,0] # Float. The scalar of force fields controlling the force magnitude -> deformation magnitude of the tumor in nonlinear solver. Unit of force field scalar: N. 
 
     weight_matrix = scipy.io.loadmat(force_file_name)["weight_matrix"] # Fix weight matrix. Random: weight_matrix = (2.0 * np.random.rand(eigenNum, 3*sample_num) - 1.0) * force_scalar
-    force_field_matrix_2 = generateForceFields(laplacian_matrix, sample_num, weight_matrix, eigen_num=eigenNum, scalar=force_scalar) # Size: nSurfI*3 x sampleNum.
+    force_field_matrix_2 = generateForceFields(laplacian_matrix, sample_num, weight_matrix, eigen_num=eigenNum, scalar=force_scalar) # Reconstructed force field. Size: nSurfI*3 x sampleNum.
 
-    alpha_num = 10
-    alpha = list(np.linspace(0,1,alpha_num+2))[1:-1] # List of floats. (0.0, 1.0). 
-    force_field_new = forceFieldInterpolation(force_field_matrix_1, force_field_matrix_2, alpha)
+    alpha_increment = 0.1 # The increment of alpha (between 0.0 and 1.0). 
+    alpha = list(np.linspace(0.0, 1.0, int(1.0/alpha_increment)+1)) # List of floats. [0.0, 1.0]. Closed. 
+    force_field_new, alpha_indexing_vector = forceFieldInterpolation(force_field_matrix_1, force_field_matrix_2, alpha)
 
-    mdict = {"force_field_prescribed": force_field_new}
+    mdict = {"force_field_interpolated": force_field_new, # The interpolated force fields. 
+             "force_field_matrix_1": force_field_matrix_1, # Laplacian-smoothed force field. Size: nSurfI*3 x sampleNum. 
+             "force_field_matrix_2": force_field_matrix_2, # Reconstructed force field. Size: nSurfI*3 x sampleNum.
+             "force_field_random": generateForceFields(laplacian_matrix, sample_num, 
+                                                       weight=(2.0*np.random.rand(eigenNum,3*sample_num)-1.0), 
+                                                       eigen_num=eigenNum, scalar=force_scalar), # A new batch of reconstructed force fields. Should be independent of original weight-summed force field matrix. 
+             "weight_matrix": weight_matrix,
+             "alpha_indexing_vector": alpha_indexing_vector}
+
     scipy.io.savemat("force_field_data.mat", mdict)
 
 
