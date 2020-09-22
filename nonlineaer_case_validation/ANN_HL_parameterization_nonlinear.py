@@ -997,7 +997,7 @@ def main():
     isKCenter = True # True/Flase: Y/N for implementing optimized k-center. 
 
     if not os.path.isdir(ANN_folder_path): os.mkdir(ANN_folder_path)
-    if not os.path.isdir(figure_folder_path): os.mkdir(figure_folder_path)
+    if not os.path.isdir(os.path.join(ANN_folder_path, figure_folder_path)): os.mkdir(os.path.join(ANN_folder_path, figure_folder_path))
     
     # Parameterization related parameters. 
     # Define ANN hidden layer combinations. 
@@ -1116,9 +1116,23 @@ def main():
             mean_mean_err_list.append(mean_mean)
             elapsed_time_list.append(elapsed_time)
 
-        # Save training process & test info & parameterization results into .log files. 
+        # Save the results. 
         name_label_list_temp = [str(item) for item in neural_net.hidden_layer_struct]
         name_label_string = '_'.join(name_label_list_temp)
+        
+        # Plot training & validation loss vs. Epochs for each combination (from the last trained model). 
+        plt.figure(figsize=(20.0,12.8))
+        plt.rcParams.update({"font.size": 35})
+        plt.tick_params(labelsize=35)
+        line1, = plt.plot(range(100, num_epochs, 1),np.log(lossList_train)[100:],label="Train Loss (log)")
+        line2, = plt.plot(range(100, num_epochs, 1),np.log(lossList_valid)[100:],label="Validation Loss (log)")
+        plt.xlabel("Epoch", fontsize=40)
+        plt.ylabel("log(Loss)", fontsize=40)
+        plt.legend([line1,line2], ["Train Loss (log)","Validation Loss (log)"], prop={"size": 40})
+        plt.title("Train & Valid Loss v/s Epoch - {}".format(name_label_string))
+        plt.savefig(os.path.join(ANN_folder_path, figure_folder_path, "train_valid_loss_{}.png".format(name_label_string)))
+        
+        # Save training process & test info & parameterization results into .log files for each combination (from the last trained model). 
         writePath_ANN_models = os.path.join(ANN_folder_path, "train_valid_loss_{}.log".format(name_label_string))
 
         saveLog(lossList_train, lossList_valid, FM_num, PC_num, batch_size, 
