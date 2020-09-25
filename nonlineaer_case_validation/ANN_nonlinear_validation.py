@@ -55,7 +55,7 @@ class Net1(nn.Module):
         #     nn.ReLU(),
         #     # nn.Dropout(0.5)
         # )
-        self.out_layer = nn.Linear(32, self.PC_num)
+        self.out_layer = nn.Linear(64, self.PC_num)
         
         
     def forward(self, x):
@@ -776,7 +776,7 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
     orig_config_temp = data_mat_temp[variable_name] # Float matrix. Extract the node-coord data of the original configuration. 
     orig_config_temp = orig_config_temp.astype(float).reshape(-1,1) # Size: node_num*3 x 1. Concatenated as xyzxyz...
 
-    deformed_config_file_list = os.listdir(results_folder_path)
+    deformed_config_file_list = [file for file in os.listdir(results_folder_path) if not os.path.isdir(file) and file.split('.')[-1] == "csv"]
     data_x = None
 
     for index, file in enumerate(deformed_config_file_list):
@@ -802,7 +802,7 @@ def main():
 
     Preparations:
     ----------
-        1. Run nonlinearCasesCreation.py to generate model input files for Abaqus and the file "training_parameters_transfer.mat" in the working directory;
+        1. Run `nonlinearCasesCreation.py` to generate model input files for Abaqus and the file "training_parameters_transfer.mat" in the working directory;
         2. Run nonlinear FEA on Abaqus (Run script -> run.py), and run data_extraction.m to generate result coordinates (saved in .csv files) after deformation.
     
     Pipeline:
@@ -842,7 +842,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 20
     learning_rate = 0.001
-    num_epochs = 10000 # Default: TBD. Previous default: 4000.  
+    num_epochs = 12000 # Default: TBD. Previous default: 4000.  
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
@@ -1002,7 +1002,8 @@ def main():
         if i == 0: test_reconstruct_matrix = vector
         else: test_reconstruct_matrix = np.concatenate((test_reconstruct_matrix, vector), axis=1)
     
-    mdict = {"FM_num": FM_num, "PC_num": PC_num, # Numbers of FMs and principal components. 
+    mdict = {"FM_num": FM_num, "PC_num": PC_num, # Numbers of FMs and principal components.
+             "nonlinear_deformation_matrix": data_matrix, # Deformation data from nonlinear simulation results. 
              "test_deformation_label": test_data, # Label deformation results. 
              "test_deformation_reconstruct": test_reconstruct_matrix, # ANN reconstruction deformation results. 
              "test_PCA_reconstruct": test_PCA_reconstruct, # Reconstruction of pure PCA decomposition. 

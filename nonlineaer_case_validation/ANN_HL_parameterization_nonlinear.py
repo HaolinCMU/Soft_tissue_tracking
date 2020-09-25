@@ -927,7 +927,7 @@ def deformationExtraction(orig_data_file_name, variable_name, original_node_numb
     orig_config_temp = data_mat_temp[variable_name] # Float matrix. Extract the node-coord data of the original configuration. 
     orig_config_temp = orig_config_temp.astype(float).reshape(-1,1) # Size: node_num*3 x 1. Concatenated as xyzxyz...
 
-    deformed_config_file_list = os.listdir(results_folder_path)
+    deformed_config_file_list = [file for file in os.listdir(results_folder_path) if not os.path.isdir(file) and file.split('.')[-1] == "csv"]
     data_x = None
 
     for index, file in enumerate(deformed_config_file_list):
@@ -986,7 +986,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 20
     learning_rate = 0.001
-    num_epochs = 10000 # Default: 4000. 
+    num_epochs = 12000 # Default: 4000. 
     training_ratio = 0.8
     validation_ratio = 0.1
     FM_num = 5
@@ -1013,7 +1013,6 @@ def main():
 
 
     # ********************************** DATA PROCESSING ********************************** #
-    # Extract data from .mat file
     # Extract data from .mat file
     transfer_data_mat = scipy.io.loadmat("training_parameters_transfer.mat")
     data_mat = scipy.io.loadmat(transfer_data_mat["orig_data_file_name"][0])

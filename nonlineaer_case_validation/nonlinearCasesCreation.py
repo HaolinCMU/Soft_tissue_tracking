@@ -1081,7 +1081,7 @@ def main():
     # ================================== Force interpolation related variables ================================== #
     force_field_mat_name = "force_field_data.mat"
     force_interpolation_folder = "inp_interpolation"
-    isPrescribedForceOn = True # Boolean indicator. True: use prescribed force field; False: no specified force field. Default: False. 
+    isPrescribedForceOn = False # Boolean indicator. True: use prescribed force field; False: no specified force field. Default: False. 
     force_type = "interpolated" # String. The type of prescribed force field. "interpolated": interpolated force fields; "random": weighted-summed force fields. 
     eigen_num_force, force_scalar = 20, 1.0 # Float. The scalar of force fields controlling the force magnitude -> deformation magnitude of the tumor in nonlinear solver. Unit: N. 
     # =========================================================================================================== #

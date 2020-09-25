@@ -87,7 +87,7 @@ def collectFiles(directory, jobname, extension, target_folder):
 # coord_folder_name = transferred_data.item().get("results_folder_path_coor")
 
 current_directory = "C:/Users/13426/Desktop/soft_tissue_tracking/code/ANN/nonlinear" # Directory with only input files of stage1 and stage2. 
-inp_folder = "inp_files"
+inp_folder = "inp_interpolation"
 working_directory = os.path.join(current_directory, inp_folder)
 os.chdir(working_directory)
 file_list = [file for file in os.listdir(working_directory) if os.path.isdir(file) == 0]
