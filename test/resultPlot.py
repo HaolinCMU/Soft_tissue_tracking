@@ -177,3 +177,42 @@ f = df.boxplot(sym = 'o',
            return_type='dict')
 plt.ylabel('Euclidean distance (mm)', fontsize=40)
 plt.savefig(figure_folder_path + '/boxPlot_meanError.png')
+
+
+# Comparison of ANN & PCA reconstruction performance
+data_mean = np.hstack((mean_nodal_error_testPCA.reshape(-1,1), mean_nodal_error.reshape(-1,1)))
+data_max = np.hstack((max_nodal_error_testPCA.reshape(-1,1), max_nodal_error.reshape(-1,1)))
+
+fig, axes = plt.subplots(1, 1, figsize = (20, 12.8))
+plt.rcParams.update({"font.size": 35})
+plt.tick_params(labelsize=35)
+plt.title("ANN_PCA_comparison_meanErr")
+df = pd.DataFrame(data_mean, columns=['PCA', 'ANN'])
+f = df.boxplot(sym = 'o',
+           vert = True,
+           whis=1.5, 
+           patch_artist = True,
+           meanline = False,showmeans = True,
+           showbox = True,
+           showfliers = True,
+           notch = False,
+           return_type='dict')
+plt.ylabel('Euclidean distance (mm)', fontsize=40)
+plt.savefig(figure_folder_path + '/ANN_PCA_comparison_meanErr.png')
+
+fig, axes = plt.subplots(1, 1, figsize = (20, 12.8))
+plt.rcParams.update({"font.size": 35})
+plt.tick_params(labelsize=35)
+plt.title("ANN_PCA_comparison_maxErr")
+df = pd.DataFrame(data_max, columns=['PCA', 'ANN'])
+f = df.boxplot(sym = 'o',            
+           vert = True,
+           whis=1.5, 
+           patch_artist = True,
+           meanline = False,showmeans = True,
+           showbox = True,
+           showfliers = True,
+           notch = False,
+           return_type='dict')
+plt.ylabel('Euclidean distance (mm)', fontsize=40)
+plt.savefig(figure_folder_path + '/ANN_PCA_comparison_maxErr.png')
