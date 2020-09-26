@@ -191,7 +191,7 @@ def matrixShrink(data_matrix, fix_indices_list=[]):
 
 def zeroMean(data_matrix, training_ratio, mean_vect_input=[]):
     """
-    Shift the origin of new basis coordinate system to mean point of the data. 
+    Shift the origin of new basis coordinate system to mean point of the training data. 
 
     Parameters:
     ----------
@@ -410,7 +410,7 @@ def testNet(test_dataloader, neural_net, device):
     return pred_y_List, test_y_List, lossList_test
 
 
-def deformationExtraction(data_mat, variable_name, original_node_number, loads_num, results_folder_path):
+def deformationExtraction(data_mat, variable_name, original_node_number, loads_num, results_folder_path, alpha_indexing_vector=[]):
     """
     Extract deformation information from original configuration (.mat file) and deformed configuration (.csv file). 
 
@@ -426,6 +426,9 @@ def deformationExtraction(data_mat, variable_name, original_node_number, loads_n
             The number of couple regions = number of rf points = the header legnth of the coordinate .csv file, 
         results_folder_path: String. 
             The path of the directory containing the result .csv files. 
+        alpha_indexing_vector (optional): List of floats.
+            The vector containing all alphas for linear interpolation of force fields.
+            Default: []. 
     
     Returns:
     ----------
@@ -437,10 +440,14 @@ def deformationExtraction(data_mat, variable_name, original_node_number, loads_n
     orig_config_temp = data_mat[variable_name] # Float matrix. Extract the node-coord data of the original configuration. 
     orig_config_temp = orig_config_temp.astype(float).reshape(-1,1) # Size: node_num*3 x 1. Concatenated as xyzxyz...
 
-    deformed_config_file_list = os.listdir(results_folder_path)
-    data_x = None
+    deformed_config_file_list = [file for file in os.listdir(results_folder_path) if not os.path.isdir(file) and file.split('.')[-1] == "csv"]
+    data_x, alpha_vector = None, []
 
     for index, file in enumerate(deformed_config_file_list):
+        if alpha_indexing_vector != []:
+            file_number = int(file.split('_')[0])
+            alpha_vector.append(alpha_indexing_vector[file_number-20001]) # 20001: from "nonlinearCasesCreation.py". Change it with the settings in "nonlinearCasesCreation.py". 
+
         lines_temp = readFile(os.path.join(results_folder_path, file))
         nodes_list_temp = []
 
@@ -454,14 +461,23 @@ def deformationExtraction(data_mat, variable_name, original_node_number, loads_n
         if index == 0: data_x = copy.deepcopy(x_temp)
         else: data_x = np.hstack((data_x, copy.deepcopy(x_temp)))
     
-    return data_x
+    alpha_vector = np.array(alpha_vector).astype(float).reshape(-1,)
+    
+    return data_x, alpha_vector
 
 
 def main():
     """
-    ANN testing for external unseen dataset. 
-    Use the results from the same geometry. 
-    Run "resultPlot.py" afterwards.
+    ANN testing for external unseen nonlinear dataset. 
+
+    Pipeline: 
+    ----------
+        1. Run "ANN_nonlinear_validation.py", and obtain the result files of "ANN_benchmark_results.mat", "ANN_trained.pkl", as well as "data.mat" for specific models. 
+        2. Copy & Past the above three files to the same directory of "ANN_test.py", as well sa the dataset used for testing to the folder named "data".
+        3. Double check if the ANN srtructure is the same as the one used in "ANN_nonlinear_validation.py". 
+        4. Run "ANN_test.py". 
+        5. Run "resultPlot.py". 
+        6. Run "visualizeResults.m" for deformation reconstruction visualization. 
     """
 
     result_mat_file_name = "ANN_benchmark_results.mat"
@@ -491,7 +507,9 @@ def main():
 
     original_node_number, loads_num = mesh_mat[orig_config_var_name].shape[0], 0 # loads_num: when using coupling constraints, a number of assembly nodes should be specifiled. 
     fix_indices_list = list(result_mat[fix_node_list_name][0]) # List of ints. The list of fixed node indices. Indexed from 1. From "nonlinearCasesCreation.py". Default: None.
-    test_data = deformationExtraction(mesh_mat, orig_config_var_name, original_node_number, loads_num, result_folder_path) # change the variable's name if necessary. 
+    alphaIndexingVector = list(result_mat["alpha_indexing_vector"]) # List of floats. The alphas for interpolated data. 
+    test_data, alpha_vector = deformationExtraction(mesh_mat, orig_config_var_name, original_node_number, loads_num, result_folder_path, 
+                                                    alpha_indexing_vector=alphaIndexingVector) # change the variable's name if necessary. 
 
     data_x, nDOF, non_zero_indices_list = matrixShrink(test_data, fix_indices_list) # Remove zero rows of data_x.
     data_x, mean_vect = zeroMean(data_x, training_ratio=1.0, mean_vect_input=mean_vect_list) # Shift(zero) the data to its mean (obtained from previous result). 
@@ -570,7 +588,8 @@ def main():
              "mean_vect": mean_vect, # The mean vector and principal eigenvector matrix of training dataset for data reconstruction. 
              "dist_nodal_matrix_testPCA": 1e3*dist_nodal_matrix_testPCA, # Distance between each nodal pair (pure PCA reconstruction). Unit: mm
              "mean_nodal_error_testPCA": 1e3*np.array(mean_error_list_testPCA).astype(float).reshape(-1,1), # Mean nodal distance of each sample (pure PCA reconstruction). Unit: mm
-             "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1) # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
+             "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1), # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
+             "alpha_vector": alpha_vector # Vector of alphas of all tested samples. Size: sampleNum_test * 1. 
              }
     scipy.io.savemat("ANN_test_results.mat", mdict) # Run visualization on Matlab. 
 

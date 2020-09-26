@@ -216,3 +216,57 @@ f = df.boxplot(sym = 'o',
            return_type='dict')
 plt.ylabel('Euclidean distance (mm)', fontsize=40)
 plt.savefig(figure_folder_path + '/ANN_PCA_comparison_maxErr.png')
+
+
+# Plot reconstruction performances vs. alpha (linear interpolation coeff.)
+alpha_vector = list(data_file["alpha_vector"][0,:])
+alpha_categories = list(np.linspace(0.0, 1.0, int(1/0.1 + 1))) # Change with forceInterpolation.py. 
+alpha_categories.sort()
+sample_collection = []
+
+for value in alpha_categories:
+    sample_collection.append([index for index, item in enumerate(alpha_vector) if item == value]) # All indexed from 0. 
+    print(sample_collection[-1])
+
+max_avg_list, mean_avg_list = [], []
+
+for i, value in enumerate(alpha_categories):
+    category_max_sum, category_max_avg, category_mean_sum, category_mean_avg = 0.0, 0.0, 0.0, 0.0
+
+    for ind in sample_collection[i]:
+        category_max_sum += max_nodal_error[ind]
+        category_mean_sum += mean_nodal_error[ind]
+
+    category_max_avg = category_max_sum / len(sample_collection[i])
+    category_mean_avg = category_mean_sum / len(sample_collection[i])
+
+    max_avg_list.append(category_max_avg)
+    mean_avg_list.append(category_mean_avg)
+
+
+alpha_plot = alpha_categories
+max_plot = max_avg_list
+mean_plot = mean_avg_list
+
+plt.figure(figsize=(20.0, 12.8))
+plt.rcParams.update({"font.size": 35})
+plt.tick_params(labelsize=35)
+plt.plot(alpha_plot, max_plot, linewidth=3.0, linestyle='-', marker='*', 
+            color='b', markersize=7.0, label="Mean_max_err vs Alpha(s)")
+plt.legend(loc='upper right', prop={'size': 40})
+plt.xlabel('Linear interpolation coefficients', fontsize=40)
+plt.ylabel('Euclidean error (mm)', fontsize=40)
+plt.title('Mean_max_nodal_error vs. Alpha')
+plt.savefig(figure_folder_path + '/Max_alpha.png')
+
+plt.figure(figsize=(20.0, 12.8))
+plt.rcParams.update({"font.size": 35})
+plt.tick_params(labelsize=35)
+plt.plot(alpha_plot, mean_plot, linewidth=3.0, linestyle='-', marker='*', 
+            color='b', markersize=7.0, label="Mean_mean_err vs Alpha(s)")
+plt.legend(loc='upper right', prop={'size': 40})
+plt.xlabel('Linear interpolation coefficients', fontsize=40)
+plt.ylabel('Euclidean error (mm)', fontsize=40)
+plt.title('Mean_mean_nodal_error vs. Alpha')
+plt.savefig(figure_folder_path + '/Mean_alpha.png')
+
