@@ -1008,8 +1008,8 @@ def main():
              "test_deformation_reconstruct": test_reconstruct_matrix, # ANN reconstruction deformation results. 
              "test_PCA_reconstruct": test_PCA_reconstruct, # Reconstruction of pure PCA decomposition. 
              "fix_node_list": fix_indices_list, # List of fixed node indices. Indexed from 1. 
-             "FM_indices": np.array(FM_indices).astype(int).reshape(-1,1) + 1, # FMs" indices. Add 1 to change to indexing system in Matlab. 
-             "center_indices": np.array(center_indices_list).astype(int).reshape(-1,1) + 1, # Center indices generated from the k-center clustering. Add 1 to change to indexing system in Matlab. 
+             "FM_indices": np.array(FM_indices).astype(int).reshape(-1,1) + 1, # FMs" indices. Indexed from 1. 
+             "center_indices": np.array(center_indices_list).astype(int).reshape(-1,1) + 1, # Center indices generated from the k-center clustering. Indexed from 1. 
              "dist_nodal_matrix": 1e3*dist_nodal_matrix, # Distance between each nodal pair. Unit: mm
              "mean_nodal_error": mean_nodal_error, # Mean nodal distance of each sample. Unit: mm
              "max_nodal_error": max_nodal_error, # Max nodal distance of each sample. Unit: mm
@@ -1018,7 +1018,8 @@ def main():
              "mean_vect": mean_vect, # The mean vector of training dataset for data reconstruction
              "dist_nodal_matrix_testPCA": 1e3*dist_nodal_matrix_testPCA, # Distance between each nodal pair (pure PCA reconstruction). Unit: mm
              "mean_nodal_error_testPCA": 1e3*np.array(mean_error_list_testPCA).astype(float).reshape(-1,1), # Mean nodal distance of each sample (pure PCA reconstruction). Unit: mm
-             "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1) # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
+             "max_nodal_error_testPCA": 1e3*np.array(max_error_list_testPCA).astype(float).reshape(-1,1), # Max nodal distance of each sample (pure PCA reconstruction). Unit: mm
+             "alpha_indexing_vector": transfer_data_mat["alpha_indexing_vector"] # The alphas for interpolated data. 
              }
     scipy.io.savemat("ANN_benchmark_results.mat", mdict) # Run visualization on Matlab. 
 

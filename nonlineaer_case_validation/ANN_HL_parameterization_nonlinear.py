@@ -954,7 +954,7 @@ def main():
     Preparations:
     ----------
         1. Run benchmarkCreation.m in Matlab to generate the file "benchmark20mm1000samples.mat" (main data file) in the working directory;
-        2. Create an empty folders in the working directory and name it as "ANN_parameterization".
+        2. Create an empty folders in the working directory and name it as "ANN_parameterization" (optional).
 
     Pipeline:
     ----------
