@@ -226,8 +226,6 @@ sample_collection = []
 
 for value in alpha_categories:
     sample_collection.append([index for index, item in enumerate(alpha_vector) if item == value]) # All indexed from 0. 
-    print(sample_collection[-1])
-
 max_avg_list, mean_avg_list = [], []
 
 for i, value in enumerate(alpha_categories):
