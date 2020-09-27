@@ -132,6 +132,14 @@ KI = sparse(KI);
 %% construct Laplacian matrices (outer surface only). 
 [laplacianMatrixI, massMatrixI] = laplacianMatrix_cotan(NodeI, FaceI);
 
+massMatrixI3 = zeros(3 * nSurfI);
+laplacianMatrixI3 = zeros(3 * nSurfI);
+for i = 1 : 3  
+    idxI3 = i : 3 : 3 * nSurfI;
+    massMatrixI3(idxI3, idxI3) = massMatrixI;
+    laplacianMatrixI3(idxI3, idxI3) = laplacianMatrixI;
+end
+
 %%
 clear i j k fileID ke m Ve tLine
 save data.mat
