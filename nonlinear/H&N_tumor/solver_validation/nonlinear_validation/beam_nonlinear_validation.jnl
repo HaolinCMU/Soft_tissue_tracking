@@ -1,0 +1,127 @@
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+mdb.models['Model-1'].parts['beam'].deleteMesh()
+mdb.models['Model-1'].parts['beam'].setMeshControls(elemShape=TET, regions=
+    mdb.models['Model-1'].parts['beam'].cells.getSequenceFromMask(('[#1 ]', ), 
+    ), technique=FREE)
+mdb.models['Model-1'].parts['beam'].setElementType(elemTypes=(ElemType(
+    elemCode=C3D20R, elemLibrary=STANDARD), ElemType(elemCode=C3D15, 
+    elemLibrary=STANDARD), ElemType(elemCode=C3D10, elemLibrary=STANDARD)), 
+    regions=(mdb.models['Model-1'].parts['beam'].cells.getSequenceFromMask((
+    '[#1 ]', ), ), ))
+mdb.models['Model-1'].parts['beam'].generateMesh()
+mdb.models['Model-1'].rootAssembly.regenerate()
+mdb.jobs.changeKey(fromName='Job-1', toName='Job-1-tet')
+mdb.models['Model-1'].rootAssembly.Set(faces=
+    mdb.models['Model-1'].rootAssembly.instances['beam-1'].faces.getSequenceFromMask(
+    ('[#20 ]', ), ), name='BC')
+mdb.models['Model-1'].rootAssembly.Set(name='load', nodes=
+    mdb.models['Model-1'].rootAssembly.instances['beam-1'].nodes.getSequenceFromMask(
+    mask=('[#0:41 #200 ]', ), ))
+mdb.jobs['Job-1-tet'].submit(consistencyChecking=OFF)
+mdb.jobs['Job-1-tet']._Message(STARTED, {'phase': BATCHPRE_PHASE, 
+    'clientHost': 'LAPTOP-KM5CSQNF', 'handle': 0, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(WARNING, {'phase': BATCHPRE_PHASE, 
+    'message': 'Boundary conditions are specified on inactive dof of 189 nodes. The nodes have been identified in node set WarnNodeBCInactiveDof.', 
+    'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(ODB_FILE, {'phase': BATCHPRE_PHASE, 
+    'file': 'C:\\Users\\13426\\Desktop\\soft_tissue_tracking\\code\\ANN\\nonlinear\\solver_validation\\nonlinear_validation\\Job-1-tet.odb', 
+    'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(COMPLETED, {'phase': BATCHPRE_PHASE, 
+    'message': 'Analysis phase complete', 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STARTED, {'phase': STANDARD_PHASE, 
+    'clientHost': 'LAPTOP-KM5CSQNF', 'handle': 14768, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STEP, {'phase': STANDARD_PHASE, 'stepId': 1, 
+    'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 0, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(MEMORY_ESTIMATE, {'phase': STANDARD_PHASE, 
+    'jobName': 'Job-1-tet', 'memory': 255.0})
+mdb.jobs['Job-1-tet']._Message(PHYSICAL_MEMORY, {'phase': STANDARD_PHASE, 
+    'physical_memory': 16239.0, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(MINIMUM_MEMORY, {'minimum_memory': 47.0, 
+    'phase': STANDARD_PHASE, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.01, 'attempts': 1, 
+    'timeIncrement': 0.01, 'increment': 1, 'stepTime': 0.01, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 2, 
+    'phase': STANDARD_PHASE, 'equilibrium': 2})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 1, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.02, 'attempts': 1, 
+    'timeIncrement': 0.01, 'increment': 2, 'stepTime': 0.02, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 2, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.035, 'attempts': 1, 
+    'timeIncrement': 0.015, 'increment': 3, 'stepTime': 0.035, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 3, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.0575, 'attempts': 1, 
+    'timeIncrement': 0.0225, 'increment': 4, 'stepTime': 0.0575, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 4, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.09125, 'attempts': 1, 
+    'timeIncrement': 0.03375, 'increment': 5, 'stepTime': 0.09125, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 5, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.141875, 'attempts': 1, 
+    'timeIncrement': 0.050625, 'increment': 6, 'stepTime': 0.141875, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 6, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.2178125, 'attempts': 1, 
+    'timeIncrement': 0.0759375, 'increment': 7, 'stepTime': 0.2178125, 
+    'step': 1, 'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 7, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.33171875, 'attempts': 1, 
+    'timeIncrement': 0.11390625, 'increment': 8, 'stepTime': 0.33171875, 
+    'step': 1, 'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 8, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.502578125, 
+    'attempts': 1, 'timeIncrement': 0.170859375, 'increment': 9, 
+    'stepTime': 0.502578125, 'step': 1, 'jobName': 'Job-1-tet', 'severe': 0, 
+    'iterations': 1, 'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 9, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 0.7588671875, 
+    'attempts': 1, 'timeIncrement': 0.2562890625, 'increment': 10, 
+    'stepTime': 0.7588671875, 'step': 1, 'jobName': 'Job-1-tet', 'severe': 0, 
+    'iterations': 1, 'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 10, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(ODB_FRAME, {'phase': STANDARD_PHASE, 'step': 0, 
+    'frame': 11, 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(STATUS, {'totalTime': 1.0, 'attempts': 1, 
+    'timeIncrement': 0.2411328125, 'increment': 11, 'stepTime': 1.0, 'step': 1, 
+    'jobName': 'Job-1-tet', 'severe': 0, 'iterations': 1, 
+    'phase': STANDARD_PHASE, 'equilibrium': 1})
+mdb.jobs['Job-1-tet']._Message(END_STEP, {'phase': STANDARD_PHASE, 'stepId': 1, 
+    'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(COMPLETED, {'phase': STANDARD_PHASE, 
+    'message': 'Analysis phase complete', 'jobName': 'Job-1-tet'})
+mdb.jobs['Job-1-tet']._Message(JOB_COMPLETED, {
+    'time': 'Tue Sep  8 08:31:00 2020', 'jobName': 'Job-1-tet'})
+# Save by 13426 on 2020_09_08-08.40.36; build 2018 2017_11_07-12.21.41 127140

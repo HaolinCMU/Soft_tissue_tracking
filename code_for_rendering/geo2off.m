@@ -11,7 +11,7 @@ deformed_config_file = "ANN_benchmark_results.mat"; % Containing deformed config
 isDeformedOn = 1; % 0: Not deformed geometry; 1: deformed geometry.
 
 isReconstructOn = 0; % 0: ANN-reconstructed configuration; 1: FEM-generated configuration. 
-sample_NO = 30; % NO. of the sample. [1,100]. 
+sample_NO = 80; % NO. of the sample. [1,100]. 
 
 
 %% Extract node information. 
@@ -67,7 +67,7 @@ fclose(f);
 
 
 %% Write .off file. 
-write_path = 'model.off';
+write_path = 'model_' + string(sample_NO) + '.off';
 output2off(node_list, face_list, write_path);
 
 

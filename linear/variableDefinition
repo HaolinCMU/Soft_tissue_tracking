@@ -1,0 +1,18 @@
+NodeI: spatial location of all nodes 
+EleI: all tetrahedral elements in the mesh
+FaceI: surface triangles of the tumor shape
+
+Linear finite element method: KI * xI = FI
+KI: stiffness matrix
+xI: displacement vector (x_1x, x_1y, x_1z, x_2x, x_2y, ..., x_nz)
+FI: externally applied nodal forces
+
+idxFix3: indices of fixed nodes in 3D (idxFix_1x, idxFix_1y, idxFix_1z, idxFix_2x, ..., idxFix_mz)
+idxSurfI3: indices of surface nodes in 3D 
+forcefield3: externally applied forces on tumor surface in 3D (non-rescaled)
+
+eigV: 15 eigenvectors of discretized Laplace-Beltrami operator with the smallest eigenvalue
+laplacianMatrixI3: Laplace-Beltrami operator extented to 3D
+massMatrix3: nodal mass matrix expanded to 3D
+
+maxDisp: maximum displacement of nodes in each deformation benchmark
